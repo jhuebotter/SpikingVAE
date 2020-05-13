@@ -1,14 +1,10 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+import math
 from glob import glob
 from pathlib import Path
-import math
-import time
 from tqdm import tqdm
 
-# import sys
-# sys.path.append("..")
 
 from src.logger import Logger
 
@@ -57,6 +53,24 @@ class BaseModel:
     def count_parameters(self):
         return sum(p.numel() for p in self.model.parameters() if p.requires_grad)
 
+    def init_weights(self):
+        # initialize weights
+        for m in self.model.modules():
+            if isinstance(m, nn.Conv2d):
+                n = m.kernel_size[0] * m.kernel_size[1] * m.in_channels
+                variance1 = math.sqrt(2.0 / n)
+                m.weight.data.normal_(0, variance1)
+                # define threshold
+                m.threshold = 1
+
+            elif isinstance(m, nn.Linear):
+                size = m.weight.size()
+                fan_in = size[1]
+                variance2 = math.sqrt(2.0 / fan_in)
+                m.weight.data.normal_(0.0, variance2)
+                # define threshold
+                m.threshold = 1
+
     def loss_function(self):
         # To be implemented by subclasses
         raise NotImplementedError
@@ -101,7 +115,7 @@ class BaseModel:
             result = self.step(X, y, train=True)
             loss = result["loss"]
             train_loss += loss
-            if self.verbose and batch_idx % self.log_interval == self.log_interval - 1:
+            if batch_idx and self.verbose and batch_idx % self.log_interval == 0:
                 self.log_func(
                     f"Train Epoch: {epoch} [{batch_idx * len(X)}/{len(train_loader.dataset)} ({100.0 * batch_idx / len(train_loader):.1f}%)]\tLoss: {loss / len(X):.6f}"
                 )

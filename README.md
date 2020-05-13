@@ -32,7 +32,7 @@ Thesis project for MSc. Artificial Intelligence at Vrije Universiteit Amsterdam.
 * [x] Fashion-MNIST dataset
 * [ ] CelebA dataset
 * [ ] Bouncing balls dataset
-* [ ] Fully connected classifier network
+* [x] Fully connected classifier network
 * [x] Convolutional classifier network 
 * [ ] Convolutional autoencoder
 * [ ] Convolutional variational autoencoder

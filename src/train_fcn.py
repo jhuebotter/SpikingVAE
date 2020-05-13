@@ -1,4 +1,4 @@
-from src.models.conv_classifier import ConvolutionalNeuralNetwork
+from src.models.fc_classifier import FullyConnectedNeuralNetwork
 import src.utils as u
 
 
@@ -14,10 +14,10 @@ def main():
     # train the model
     for dataset in ["fashion", "mnist"]:
         args.dataset = dataset
-        train_cnn(args)
+        train_fcn(args)
 
 
-def train_cnn(args):
+def train_fcn(args):
 
     # choose the devices for computation (GPU if available)
     device = u.get_backend(args)
@@ -31,25 +31,28 @@ def train_cnn(args):
         args.dataset, args.batch_size, args.cuda, verbose=args.verbose
     )
 
+    print(args.verbose)
+
     # initialize model
-    cnn = ConvolutionalNeuralNetwork(
-        width,
-        height,
-        channels,
-        args.dataset,
-        args.loss,
-        args.optim,
-        args.lr,
-        args.wd,
-        device,
-        args.log_interval,
-        args.verbose,
-        args.print_freq,
+    fcn = FullyConnectedNeuralNetwork(
+        input_width=width,
+        input_height=height,
+        input_channels=channels,
+        dataset=args.dataset,
+        loss=args.loss,
+        optimizer=args.optim,
+        learning_rate=args.lr,
+        weight_decay=args.wd,
+        device=device,
+        log_interval=args.log_interval,
+        print_freq=args.print_freq,
+        activation="relu",
         n_out=len(train_loader.dataset.targets.unique()),
+        verbose=args.verbose
     )
 
     # run training
-    cnn.run_training(
+    fcn.run_training(
         train_loader,
         test_loader,
         args.epochs,

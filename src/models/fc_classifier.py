@@ -5,7 +5,7 @@ from src.models.base_model import BaseModel
 import src.utils as u
 
 
-class ConvolutionalNeuralNetwork(BaseModel):
+class FullyConnectedNeuralNetwork(BaseModel):
     def __init__(
         self,
         input_width,
@@ -18,12 +18,12 @@ class ConvolutionalNeuralNetwork(BaseModel):
         weight_decay,
         device,
         log_interval,
+        print_freq,
         activation="relu",
-        pooling="avg",
         n_out=2,
         verbose=True,
     ):
-        super(ConvolutionalNeuralNetwork, self).__init__(
+        super(FullyConnectedNeuralNetwork, self).__init__(
             input_width,
             input_height,
             input_channels,
@@ -33,15 +33,14 @@ class ConvolutionalNeuralNetwork(BaseModel):
             device,
             log_interval,
             activation,
-            pooling,
             n_out,
             verbose,
         )
 
         if verbose:
-            self.log_func("Initializing convolutional neural network...")
+            self.log_func("Initializing fully connected neural network...")
 
-        self.model = CNNModel(
+        self.model = FCModel(
             self.input_width, self.input_height, self.input_channels, n_out=n_out,
         )
         self.init_weights()
@@ -66,17 +65,14 @@ class ConvolutionalNeuralNetwork(BaseModel):
             .to(self.device)
         )
 
-        x_ = self.model.convs(x)
-
         self.log_func(f"Input shape: {x.shape}")
-        self.log_func(f"Flattend shape after convolution: {x_[0].shape}")
         self.log_func(f"Output shape: {self.n_out}")
         self.log_func(f"Network architecture:")
         self.log_func(self.model)
         self.log_func(f"Number of trainable parameters: {self.count_parameters()}")
 
 
-class CNNModel(nn.Module):
+class FCModel(nn.Module):
     """Creates a CNN model."""
 
     def __init__(
@@ -85,14 +81,13 @@ class CNNModel(nn.Module):
         input_height,
         input_channels,
         activation="relu",
-        pooling="avg",
         n_out=2,
         verbose=False,
     ):
-        super(CNNModel, self).__init__()
+        super(FCModel, self).__init__()
 
         if verbose:
-            self.log_func("Initializing CNN model...")
+            self.log_func("Initializing FC model...")
 
         self.input_width = input_width
         self.input_height = input_height
@@ -108,75 +103,16 @@ class CNNModel(nn.Module):
                 f"Valid options are: 'relu'."
             )
 
-        # set pooling function
-        if pooling.lower() == "max":
-            self.pooling = nn.MaxPool2d
-        elif pooling.lower() == "avg":
-            self.pooling = nn.AvgPool2d
-        else:
-            raise NotImplementedError(
-                f"The pooling function {pooling} is not implemented.\n"
-                f"Valid options are: 'max', 'avg'."
-            )
-
         # define layers
-        self.conv1 = nn.Conv2d(
-            in_channels=self.input_channels,
-            out_channels=16,
-            kernel_size=3,
-            stride=1,
-            padding=0,
-            bias=False,
-        )
-        self.pool1 = self.pooling(kernel_size=2, stride=1)
-
-        self.conv2 = nn.Conv2d(
-            in_channels=16,
-            out_channels=32,
-            kernel_size=3,
-            stride=1,
-            padding=0,
-            bias=False,
-        )
-        self.pool2 = self.pooling(kernel_size=2, stride=1)
-
-        self.conv3 = nn.Conv2d(
-            in_channels=32,
-            out_channels=64,
-            kernel_size=3,
-            stride=1,
-            padding=0,
-            bias=False,
-        )
-        self.pool3 = self.pooling(kernel_size=2, stride=1)
-
         x = torch.randn(self.input_width, self.input_height).view(
             -1, 1, self.input_width, self.input_height
         )
-        x_ = self.convs(x)
-        self._to_linear = x_[0].shape[0] * x_[0].shape[1] * x_[0].shape[2]
+        self._to_linear = x[0].shape[0] * x[0].shape[1] * x[0].shape[2]
 
         self.fc1 = nn.Linear(self._to_linear, 512)
-        self.fc2 = nn.Linear(512, self.n_out)
+        self.fc2 = nn.Linear(512, 512)
+        self.fc3 = nn.Linear(512, self.n_out)
 
-
-
-    def convs(self, x):
-        """Passes data through convolutional layers.
-
-        :param x: Tensor with input data.
-
-        :return Tensor with output data.
-        """
-
-        x = self.activation(self.conv1(x))
-        x = self.pool1(x)
-        x = self.activation(self.conv2(x))
-        x = self.pool2(x)
-        x = self.activation(self.conv3(x))
-        x = self.pool3(x)
-
-        return x
 
     def forward(self, x):
         """Passes data through the network.
@@ -186,17 +122,17 @@ class CNNModel(nn.Module):
         :return Tensor with output data.
         """
 
-        x = self.convs(x)
         x = x.view(-1, self._to_linear)
         x = self.activation(self.fc1(x))
-        x = self.fc2(x)
+        x = self.activation(self.fc2(x))
+        x = self.fc3(x)
 
         return F.softmax(x, dim=1)
 
 
 if __name__ == "__main__":
 
-    cnn = ConvolutionalNeuralNetwork(
+    fcn = FullyConnectedNeuralNetwork(
         input_width=28,
         input_height=28,
         input_channels=1,

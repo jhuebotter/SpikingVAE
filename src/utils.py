@@ -117,7 +117,7 @@ def get_argparser(description=""):
         default=42,
         type=int,
         metavar="S",
-        help="seed for random number generators (default: 42)",
+        help="seed for random number generators, set to 0 for not setting a state (default: 42)",
     )
     parser.add_argument(
         "--normalize",
@@ -171,6 +171,7 @@ def get_datasets(dataset, batch_size, cuda, root="../data", verbose=True):
 
     kwargs = {"num_workers": 1, "pin_memory": True} if cuda else {}
 
+    print(dataset_path)
     train_loader = DataLoader(
         Dataset(
             dataset_path, train=True, download=False, transform=transforms.ToTensor()
