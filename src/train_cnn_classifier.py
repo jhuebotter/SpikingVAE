@@ -1,5 +1,5 @@
-from src.models.fc_classifier import FullyConnectedNeuralNetwork
-import src.utils as u
+from models.conv_classifier import ConvolutionalNeuralNetwork
+import utils as u
 
 
 def main():
@@ -8,16 +8,18 @@ def main():
     parser = u.get_argparser()
     args = parser.parse_args()
     args.lr = 1e-7
-    args.log_interval = 100
-    args.seed = 2
 
     # train the model
     for dataset in ["fashion", "mnist"]:
         args.dataset = dataset
-        train_fcn(args)
+        train_cnn(args)
 
 
-def train_fcn(args):
+def train_cnn(args):
+    """Creates and trains a convolutional network classifier.
+
+    :param args: object, parser ArgParser arguments.
+    """
 
     # choose the devices for computation (GPU if available)
     device = u.get_backend(args)
@@ -28,16 +30,19 @@ def train_fcn(args):
 
     # load dataset
     train_loader, test_loader, (width, height, channels) = u.get_datasets(
-        args.dataset, args.batch_size, args.cuda, verbose=args.verbose
+        dataset=args.dataset,
+        batch_size=args.batch_size,
+        cuda=args.cuda,
+        verbose=args.verbose
     )
 
-    print(args.verbose)
-
     # initialize model
-    fcn = FullyConnectedNeuralNetwork(
+    cnn = ConvolutionalNeuralNetwork(
         input_width=width,
         input_height=height,
         input_channels=channels,
+        hidden_sizes=args.hidden_sizes,
+        conv2d_channels=args.conv_channels,
         dataset=args.dataset,
         loss=args.loss,
         optimizer=args.optim,
@@ -46,13 +51,18 @@ def train_fcn(args):
         device=device,
         log_interval=args.log_interval,
         print_freq=args.print_freq,
-        activation="relu",
+        kernel_size=3,
+        stride=1,
+        pooling_kernel=2,
+        pooling_stride=1,
+        activation=args.activation,
+        pooling=args.pooling,
         n_out=len(train_loader.dataset.targets.unique()),
-        verbose=args.verbose
+        verbose=args.verbose,
     )
 
     # run training
-    fcn.run_training(
+    cnn.run_training(
         train_loader,
         test_loader,
         args.epochs,

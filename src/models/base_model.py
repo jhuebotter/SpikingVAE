@@ -5,8 +5,7 @@ from glob import glob
 from pathlib import Path
 from tqdm import tqdm
 
-
-from src.logger import Logger
+from logger import Logger
 
 
 class BaseModel:
@@ -22,9 +21,6 @@ class BaseModel:
         weight_decay,
         device,
         log_interval,
-        activation="relu",
-        pooling="avg",
-        n_out=2,
         verbose=False,
         log_func=print,
     ):
@@ -35,7 +31,6 @@ class BaseModel:
         self.input_height = input_height
         self.input_channels = input_channels
         self.input_sz = (self.input_channels, self.input_width, self.input_height)
-        self.n_out = n_out
 
         self.lr = learning_rate
         self.wd = weight_decay
@@ -51,10 +46,13 @@ class BaseModel:
         self.verbose = verbose
 
     def count_parameters(self):
+        """Helper function to count trainable parameters of the model."""
+
         return sum(p.numel() for p in self.model.parameters() if p.requires_grad)
 
     def init_weights(self):
-        # initialize weights
+        """Initializes network weights."""
+
         for m in self.model.modules():
             if isinstance(m, nn.Conv2d):
                 n = m.kernel_size[0] * m.kernel_size[1] * m.in_channels
@@ -72,18 +70,23 @@ class BaseModel:
                 m.threshold = 1
 
     def loss_function(self):
-        # To be implemented by subclasses
+        """Loss function applied during learning is to be implemented by subclass."""
+
         raise NotImplementedError
 
     def update_(self):
         """Update some internal variables during training such as a scheduled or conditional learning rate."""
+
         pass
 
     def step(self, data, target, train=False):
         """Pass data through the model for training or evaluation.
 
-        :param data: Batch
+        :param data: Tensor, batch of features from DataLoader object.
+        :param target: Tensor, batch of labels from DataLoader object.
+        :param train: bool, flag if model weights should be updated based on loss.
 
+        :return result: dict, contains performance metric information.
         """
 
         # TODO: CHECK HOW THE METRICS REALLY WORK!
@@ -103,7 +106,13 @@ class BaseModel:
         return result  # loss.item()
 
     def train(self, train_loader, epoch):
-        """Train the model for a single epoch."""
+        """Train the model for a single epoch.
+
+        :param train_loader: DataLoader object, containing training data.
+        :param epoch: int, current training epoch.
+
+        :return train_loss: int, average loss on training dataset.
+        """
 
         self.model.train()
         train_loss = 0
@@ -124,10 +133,17 @@ class BaseModel:
                 f"====> Epoch: {epoch} Average loss: {train_loss / len(train_loader.dataset):.4f}"
             )
 
-        return train_loss / len(train_loader.dataset)
+        train_loss /= len(train_loader.dataset)
+
+        return train_loss
 
     def test(self, test_loader):
-        """Evaluate the model on a validation or test set."""
+        """Evaluate the model on a validation or test set.
+
+        :param test_loader: DataLoader object, containing test dataset.
+
+        :return test_loss: int, average loss on training dataset.
+        """
 
         self.model.eval()
         test_loss = 0
@@ -151,7 +167,12 @@ class BaseModel:
         return test_loss
 
     def load_last_model(self, checkpoints_path):
-        """Load a pretrained model from the saved checkpoints."""
+        """Load a pretrained model from the saved checkpoints.
+
+        :param checkpoints_path: str, path to load a pretrained model from.
+
+        :return start_epoch: int, epoch number to start training from.
+        """
 
         name = self.model.__class__.__name__
         # Search for all previous checkpoints

@@ -1,18 +1,18 @@
 import argparse
 from pathlib import Path
 import torch
+import torch.nn as nn
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 
 
-def get_argparser(description=""):
+def get_argparser(description="", verbose=True):
     """Gets the default argument parser.
 
-    :param:
-        description: str, a name of the experiment / argument parser.
+    :param description: str, a name of the experiment / argument parser.
+    :param verbose: bool, flag to print statements.
 
-    :returns:
-        parser: ArgumentParser object, contains the default settings for experiments.
+    :return parser: object, ArgumentParser containing the default settings for experiments.
     """
 
     parser = argparse.ArgumentParser(description=description)
@@ -62,6 +62,34 @@ def get_argparser(description=""):
         help="mini-batch size (default: 64)",
     )
     parser.add_argument(
+        "--activation",
+        default="relu",
+        type=str,
+        help="activation function = [relu] (default: relu)",
+    )
+    parser.add_argument(
+        "--pooling",
+        default="max",
+        type=str,
+        help="pooling function = [max, avg] (default: max)",
+    )
+    parser.add_argument(
+        "--conv-channels",
+        nargs="+",
+        default=[16, 32, 64],
+        type=int,
+        metavar="CC",
+        help="number of channels in convolutional layers (default: [16, 32, 64])",
+    )
+    parser.add_argument(
+        "--hidden-sizes",
+        nargs="+",
+        default=[1000, 500],
+        type=int,
+        metavar="HS",
+        help="number of nodes in fully connected layers (default: [1000, 500])",
+    )
+    parser.add_argument(
         "--lr",
         "--learning-rate",
         default=0.001,
@@ -80,17 +108,17 @@ def get_argparser(description=""):
     parser.add_argument(
         "--log-interval",
         type=int,
-        default=500,
+        default=100,
         metavar="LOG",
-        help="how many batches to wait before logging training status",
+        help="how many batches to wait before logging training status (default: 100)",
     )
     parser.add_argument(
         "--print-freq",
         "-p",
-        default=500,
+        default=100,
         type=int,
         metavar="PF",
-        help="print frequency (default: 500)",
+        help="print frequency (default: 100)",
     )
     parser.add_argument(
         "--resume",
@@ -126,16 +154,154 @@ def get_argparser(description=""):
         help="applies normalization (default: False)",
     )
 
+    if verbose:
+        print(f"Initialized argument parser {description} with settings:")
+        args = parser.parse_args()
+        for arg in vars(args):
+            print(arg, getattr(args, arg))
+
     return parser
+
+
+def get_fc_layers(input_size, hidden_sizes, output_size, activations):
+    """Creates a list of dicts with parameters for fully connected layers with the specified dimensions.
+
+    :param input_size: int, size of the flattend input.
+    :param hidden_sizes: list, number of nodes in hidden layers.
+    :param output_size: int, number of output neurons.
+    :param activations: list, flags for the activation fuctions to use.
+
+    :return fc_parameters: list containing dicts with layer parameters.
+    """
+
+    n_nodes = [input_size] + hidden_sizes + [output_size]
+
+    fc_parameters = []
+
+    for i in range(0, len(n_nodes) - 1):
+        fc_parameters.append(
+            dict(
+                name=f"fc{i+1}",
+                type="fc",
+                parameters=dict(
+                    in_features=n_nodes[i], out_features=n_nodes[i + 1], bias=True,
+                ),
+            )
+        )
+        fc_parameters.append(
+            dict(
+                name=f"activation_fc{i+1}", type=f"{activations[i]}", parameters=dict(),
+            ),
+        )
+
+    return fc_parameters
+
+
+def get_conv2d_layers(
+    input_channels,
+    channels,
+    kernel_sizes,
+    strides,
+    activations,
+    pooling_funcs,
+    pooling_kernels,
+    pooling_strides,
+):
+    """Creates a list of dicts with parameters for convolutional layers with the specified dimensions.
+
+    :param input_channels: int, number of input channels.
+    :param channels: list, number of output channels per conv layer.
+    :param kernel_sizes: list, size of kernels to use per conv layer.
+    :param strides: list, stride to use per conv layer.
+    :param activations: list, flag for activation function to use per conv layer.
+    :param pooling_funcs: list, flag for pooling function to use per pooling layer.
+    :param pooling_kernels: list, size of kernels to use per pooling layer.
+    :param pooling_strides: list, stride to use per pooling layer.
+
+    :return conv_parameters: list, containing dicts with layer parameters.
+    """
+
+    n_channels = [input_channels] + channels
+
+    conv_parameters = []
+
+    for i in range(0, len(n_channels) - 1):
+        conv_parameters.append(
+            dict(
+                name=f"conv{i+1}",
+                type="conv2d",
+                parameters=dict(
+                    in_channels=n_channels[i],
+                    out_channels=n_channels[i + 1],
+                    kernel_size=kernel_sizes[i],
+                    stride=strides[i],
+                    padding=0,
+                    bias=False,
+                ),
+            )
+        )
+        conv_parameters.append(
+            dict(name=f"activation_conv{i+1}", type=activations[i], parameters=dict(),)
+        )
+        if pooling_kernels[i] > 1:
+            conv_parameters.append(
+                dict(
+                    name=f"pool{i+1}",
+                    type=f"{pooling_funcs[i]}pool2d",
+                    parameters=dict(
+                        kernel_size=pooling_kernels[i], stride=pooling_strides[i],
+                    ),
+                )
+            )
+
+    return conv_parameters
+
+
+def build_layers(parameter_list):
+    """Creates a ModuleDict network layers with the specified dimensions.
+
+    :param parameter_list: list, includes dicts with parameters passed to layer initialization.
+
+    :return block: ModuleDict containing torch.nn layer objects.
+    """
+
+    block = nn.ModuleDict()
+
+    if parameter_list:
+        for layer_parameters in parameter_list:
+            type_ = layer_parameters["type"].lower()
+            name = layer_parameters["name"]
+            params = layer_parameters["parameters"]
+            if type_ == "relu":
+                layer = nn.ReLU(**params)
+            elif type_ == "softmax":
+                layer = nn.Softmax(dim=1, **params)
+            elif type_ == "fc":
+                layer = nn.Linear(**params)
+            elif type_ == "conv2d":
+                layer = nn.Conv2d(**params)
+            elif type_ == "avgpool2d":
+                layer = nn.AvgPool2d(**params)
+            elif type_ == "maxpool2d":
+                layer = nn.MaxPool2d(**params)
+            else:
+                raise NotImplementedError(
+                    f"The layer {layer_parameters['type'].lower()} is not implemented."
+                )
+            block.update({name: layer})
+
+    return block
 
 
 def set_seed(seed, verbose=True):
     """Make experiments reproducible.
 
     :param seed: int, seed to use for random number generation.
+    :param verbose: bool, flag to print statements.
     """
 
-    if verbose: print(f"Setting random seed to {seed}.\n")
+    if verbose:
+        print(f"Setting random seed to {seed}.\n")
     torch.manual_seed(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
@@ -148,6 +314,8 @@ def get_datasets(dataset, batch_size, cuda, root="../data", verbose=True):
         dataset: str, name of the dataset to load. currently supported are 'mnist' and 'fashion'.
         batch_size: int, size of each minibatch for the training set.
         cuda: bool, describes if training on GPU is enabled.
+        root: str, directory where data is loaded from.
+        verbose: bool, flag to print statements.
 
     :returns
         train_loader: DataLoader object with the training data.
@@ -157,7 +325,8 @@ def get_datasets(dataset, batch_size, cuda, root="../data", verbose=True):
         channels: int, number of channels of the data (1 for greyscale, 3 for RGB).
     """
 
-    if verbose: print(f"Loading {dataset} dataset...")
+    if verbose:
+        print(f"Loading {dataset} dataset...")
     if dataset == "fashion":
         Dataset = datasets.FashionMNIST
         dataset_path = Path.joinpath(Path(root), "fashion-mnist")
@@ -205,7 +374,13 @@ def get_datasets(dataset, batch_size, cuda, root="../data", verbose=True):
 
 
 def get_backend(args):
-    """Checks for available GPU"""
+    """Checks for available GPU and chooses the hardware device.
+
+    :param args: object, arugments parsed by ArgumentParser.
+
+    :return device: object, torch.device to use.
+
+    """
 
     if args.verbose:
         print("Initializing hardware devices...")
@@ -224,7 +399,13 @@ def get_backend(args):
 
 
 def get_loss_function(loss, verbose=True):
-    """Sets the requested loss function if available"""
+    """Sets the requested loss function if available
+
+    :param loss: str, name of the loss function to use during training.
+    :param verbose: bool, flag to print statements.
+
+    :return loss_function: func, loss function to use during training.
+    """
 
     if loss.lower() == "crossentropy":
         loss_function = torch.nn.CrossEntropyLoss()
@@ -242,16 +423,21 @@ def get_loss_function(loss, verbose=True):
 
 
 def get_optimizer(optim, model, lr, wd, verbose=True):
-    """Sets the requested optimizer if available"""
+    """Sets the requested optimizer if available.
+
+    :param optim: str, name of optimizer to use.
+    :param model: object, model to optimize.
+    :param lr: float, learning rate to use for training.
+    :param wd: float, weight decay to use for training.
+    :param verbose: bool, flag to print statements.
+
+    :return optimizer: object, torch.optim object.
+    """
 
     if optim.lower() == "adam":
-        optimizer = torch.optim.Adam(
-            model.parameters(), lr=lr, weight_decay=wd
-        )
+        optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=wd)
     elif optim.lower() == "sgd":
-        optimizer = torch.optim.SGD(
-            model.parameters(), lr=lr, weight_decay=wd
-        )
+        optimizer = torch.optim.SGD(model.parameters(), lr=lr, weight_decay=wd)
     else:
         raise NotImplementedError(
             f"The optimizer {optim} is not implemented.\n"
@@ -276,7 +462,6 @@ if __name__ == "__main__":
     print("Testing seed setter...")
     set_seed(args.seed)
 
-
     sets = ["mnist", "fashion"]
     for dataset in sets:
         print(f"Testing dataset imports for {dataset}...")
@@ -294,8 +479,37 @@ if __name__ == "__main__":
     loss_function = get_loss_function(args.loss)
     print("Loss function initialization test complete!\n")
 
-    print("Testing optimizer initialization...")
     model = torch.nn.Module()
-    model.fc1 = torch.nn.Linear(2, 2)
+
+    print("Testing initialization of convolutional layers...")
+    conv_args = dict(
+        input_channels=1,
+        channels=[16, 23],
+        kernel_sizes=[3, 3],
+        strides=[1, 1],
+        activations=["relu", "relu"],
+        pooling_funcs=["max", "avg"],
+        pooling_kernels=[2, 2],
+        pooling_strides=[2, 2],
+    )
+    conv_parameters = get_conv2d_layers(**conv_args)
+    model.conv_layers = build_layers(conv_parameters)
+    print("Convolutional layer initialization test complete!\n")
+
+    print("Testing initialization of fully connected layers...")
+    print(args.hidden_sizes)
+    fc_args = dict(
+        input_size=1000,
+        hidden_sizes=args.hidden_sizes,
+        output_size=10,
+        activations=[args.activation for i in range(len(args.hidden_sizes))] + ["softmax"]
+    )
+    fc_parameters = get_fc_layers(**fc_args)  # args.hidden_sizes, 10)
+    model.fc_layers = build_layers(conv_parameters)
+    print("Fully connected layer initialization test complete!\n")
+
+    print(model)
+
+    print("Testing optimizer initialization...")
     optimizer = get_optimizer(args.optim, model, args.lr, args.wd)
-    print("optimizer initialization test complete!\n")
+    print("Optimizer initialization test complete!\n")
