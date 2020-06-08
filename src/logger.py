@@ -1,8 +1,9 @@
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
+import wandb
 
 
-class Logger(object):
+class TensorboardLogger(object):
     """Logger class to graphical summary in tensorboard"""
 
     def __init__(self, log_dir):
@@ -22,14 +23,49 @@ class Logger(object):
         self.writer.close()
 
 
+class WandBLogger(object):
+    """Logger class for graphical summary with Weights and Biases"""
+
+    def __init__(self, args, name=None, id=None):
+        #if id is None:
+        #id = wandb.util.generate_id()
+        self.run = wandb.init(
+            name=name,
+            config=args,
+            #id=id,
+            resume="allow",
+            project="spiking-vae",
+            dir="../results",
+            save_code=True,
+        )
+
+        # save models in run dir
+        wandb.save("*.pth")
+
+    def watch(self, model):
+        # tell logger to watch the model
+        wandb.watch(model, log="all")
+
+    def log(self, content={}, step=None):
+        if step is None:
+            self.run.log(content)
+        else:
+            assert isinstance(step, int)
+            self.run.log(content, step=step)
+
+
+
+
+
 if __name__ == "__main__":
     """Test for the implementations above."""
 
     log_dir = "../results/logs/exp1/g4"
-    logger = Logger(log_dir)
+    logger = TensorboardLogger(log_dir)
     writer = logger.writer
 
     import time
+
     for run in range(5):
         for n_iter in range(100):
             time.sleep(1)

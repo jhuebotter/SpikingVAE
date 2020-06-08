@@ -27,21 +27,36 @@ Thesis project for MSc. Artificial Intelligence at Vrije Universiteit Amsterdam.
 ## Features
 
 * [x] CPU/GPU support
+* [ ] Distributed processing support
+
 * [x] TensorBoard real-time monitoring
+* [x] Weights and Biases logging
+* [ ] Custom loss functions
+* [x] Custom metrics 
+* [x] Best and last model weights automatically saved
+* [ ] Pretrained weights available
+* [ ] Reconstruction & representation plotting
+* [ ] Dataset preprocessing options
+* [x] Fully commented and documented
+
 * [x] MNIST dataset
 * [x] Fashion-MNIST dataset
 * [ ] CelebA dataset
 * [ ] Bouncing balls dataset
+* [ ] Moving MNIST dataset
+
 * [x] Fully parameterized models
 * [x] Fully connected classifier network
 * [x] Convolutional classifier network 
+* [ ] Fully connected autoencoder
 * [ ] Convolutional autoencoder
+* [ ] Fully connected variational autoencoder
 * [ ] Convolutional variational autoencoder
+* [ ] Fully connected spiking autoencoder
 * [ ] Convolutional spiking autoencoder
+* [ ] Fully connected spiking variational autoencoder
 * [ ] Convolutional spiking variational autoencoder
-* [ ] Model weights automatically saved at checkpoints
-* [ ] Pretrained weights available
-* [ ] Fully commented and documented
+
 * [ ] ...
 
 
@@ -62,6 +77,15 @@ $ https://github.com/jhuebotter/SpikingVAE.git
 $ cd SpikingVAE
 $ pip install -r requirements.txt
 ```
+
+This project uses Weights and Biases for logging. In order to use this package, having an account with their platform is mandatory. Before running the scrips, you to login from you local machine by running
+
+```bash
+$ wandb login
+```
+
+For more information please see the [official documentation](https://docs.wandb.com/quickstart).
+
 
 ### Datasets
 

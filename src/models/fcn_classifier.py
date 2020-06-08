@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from models.base_model import BaseModel
 import utils as u
 
@@ -18,9 +17,8 @@ class FullyConnectedNeuralNetwork(BaseModel):
         learning_rate,
         weight_decay,
         device,
-        log_interval,
-        print_freq,
         activation="relu",
+        activation_out="logsoftmax",
         n_out=2,
         verbose=True,
         log_func=print,
@@ -33,7 +31,6 @@ class FullyConnectedNeuralNetwork(BaseModel):
             learning_rate=learning_rate,
             weight_decay=weight_decay,
             device=device,
-            log_interval=log_interval,
             verbose=verbose,
             log_func=log_func,
         )
@@ -50,6 +47,7 @@ class FullyConnectedNeuralNetwork(BaseModel):
             input_channels=self.input_channels,
             hidden_sizes=self.hidden_sizes,
             activation=activation,
+            activation_out=activation_out,
             n_out=self.n_out,
         )
         self.init_weights()
@@ -93,6 +91,7 @@ class FCModel(nn.Module):
         input_channels,
         hidden_sizes,
         activation="relu",
+        activation_out="logsoftmax",
         n_out=2,
     ):
         super(FCModel, self).__init__()
@@ -101,7 +100,7 @@ class FCModel(nn.Module):
         self.input_height = input_height
         self.input_channels = input_channels
         self.hidden_sizes = hidden_sizes
-        self.fc_activations = [activation for i in range(len(hidden_sizes))] + ["softmax"]
+        self.fc_activations = [activation for i in range(len(hidden_sizes))] + [activation_out]
         self.n_out = n_out
 
         # get flattend input size
@@ -133,4 +132,6 @@ class FCModel(nn.Module):
         for fc_layer in self.fc_layers.values():
             x = fc_layer(x)
 
-        return x
+        result = dict(output=x)
+
+        return result

@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
+from models.spiking_layers import LIF_sNeuron, Pooling_sNeuron, LF_Unit
 
 
 def get_argparser(description="", verbose=True):
@@ -30,33 +31,51 @@ def get_argparser(description="", verbose=True):
         help="enables printing messages (default: True)",
     )
     parser.add_argument(
-        "--dataset",
-        default="mnist",
+        "--model",
+        default="cnn_autoencoder",
         type=str,
-        help="dataset = [mnist, fashion] (default: mnist)",
+        help="model used for training or evaluation [fcn_classifier, cnn_classifier] (default: cnn_classifier)",
+    )
+    parser.add_argument(
+        "--dataset",
+        default="fashion",
+        type=str,
+        help="dataset used for training or evaluation [mnist, fashion] (default: mnist)",
     )
     parser.add_argument(
         "--loss",
         default="crossentropy",
         type=str,
-        help="loss function = [crossentropy, mse] (default: crossentropy)",
+        help="loss function used for training [crossentropy, mse] (default: crossentropy)",
     )
     parser.add_argument(
-        "--optim",
+        "--metrics",
+        nargs="+",
+        default=["accuracy"],
+        type=str,
+        help="metrics to calculate on the output of the network (default: [accuracy])",
+    )
+    parser.add_argument(
+        "--key_metric",
+        default="validation_loss",
+        type=str,
+        help="metric to monitor for comparing model performance (default: validation_loss)",
+    )
+    parser.add_argument(
+        "--goal",
+        default="minimize",
+        type=str,
+        help="decides if the metric monitored should increase or decrease [maximize, minimize] (default: minimize)",
+    )
+    parser.add_argument(
+        "--optimizer",
         default="adam",
         type=str,
         help="optimizer = [adam, sgd] (default: adam)",
     )
     parser.add_argument(
-        "--start-epoch",
-        default=1,
-        type=int,
-        metavar="N",
-        help="manual epoch number, useful on restarts (default: 1)",
-    )
-    parser.add_argument(
-        "--batch-size",
-        default=64,
+        "--batch_size",
+        default=32,
         type=int,
         metavar="BS",
         help="mini-batch size (default: 64)",
@@ -68,30 +87,43 @@ def get_argparser(description="", verbose=True):
         help="activation function = [relu] (default: relu)",
     )
     parser.add_argument(
+        "--activation_out",
+        default="logsoftmax",
+        type=str,
+        help="activation function for the output layer [softmax, logsoftmax, sigmoid, relu] (default: logsoftmax)",
+    )
+    parser.add_argument(
         "--pooling",
         default="max",
         type=str,
         help="pooling function = [max, avg] (default: max)",
     )
     parser.add_argument(
-        "--conv-channels",
-        nargs="+",
-        default=[16, 32, 64],
-        type=int,
+        "--conv_channels",
+        default="16, 32, 64",
+        type=str,
         metavar="CC",
-        help="number of channels in convolutional layers (default: [16, 32, 64])",
+        help="comma seperated string with numbers of channels in convolutional layers (default: [16, 32, 64])",
     )
+    # parser.add_argument(
+    #    "--conv_channels",
+    #    nargs="+",
+    #    default=[16, 32, 64],
+    #    type=int,
+    #    metavar="CC",
+    #    help="number of channels in convolutional layers (default: [16, 32, 64])",
+    # )
     parser.add_argument(
-        "--hidden-sizes",
+        "--hidden_sizes",
         nargs="+",
-        default=[1000, 500],
+        default=[100],
         type=int,
         metavar="HS",
-        help="number of nodes in fully connected layers (default: [1000, 500])",
+        help="number of nodes in fully connected layers (default: [100])",
     )
     parser.add_argument(
         "--lr",
-        "--learning-rate",
+        "--learning_rate",
         default=0.001,
         type=float,
         metavar="LR",
@@ -99,39 +131,24 @@ def get_argparser(description="", verbose=True):
     )
     parser.add_argument(
         "--wd",
-        "--weight-decay",
-        default=1e-4,
+        "--weight_decay",
+        default=0,
         type=float,
         metavar="WD",
-        help="weight decay (default: 1e-4)",
+        help="weight decay (default: 0)",
     )
     parser.add_argument(
-        "--log-interval",
-        type=int,
-        default=100,
-        metavar="LOG",
-        help="how many batches to wait before logging training status (default: 100)",
+        "--eval_first",
+        action="store_true",
+        default=False,
+        help="evaluates a model before training starts (default: True)",
     )
     parser.add_argument(
-        "--print-freq",
-        "-p",
-        default=100,
-        type=int,
-        metavar="PF",
-        help="print frequency (default: 100)",
-    )
-    parser.add_argument(
-        "--resume",
+        "--load",
         default="",
         type=str,
         metavar="PATH",
         help="path to latest checkpoint (default: none)",
-    )
-    parser.add_argument(
-        "--evaluate",
-        action="store_true",
-        default=False,
-        help="only evaluate model on validation set (default: False)",
     )
     parser.add_argument(
         "--epochs",
@@ -148,10 +165,18 @@ def get_argparser(description="", verbose=True):
         help="seed for random number generators, set to 0 for not setting a state (default: 42)",
     )
     parser.add_argument(
-        "--normalize",
-        action="store_true",
-        default=False,
-        help="applies normalization (default: False)",
+        "--sample_freq",
+        default=150,
+        type=int,
+        metavar="SF",
+        help="step between batches to sample results of; 0 is no sampling (default: 0)",
+    )
+    parser.add_argument(
+        "--samplers",
+        nargs="+",
+        default=["plot_reconstruction"],
+        type=str,
+        help="functions to call on sampled network output during evaluations (default: [plot_reconstruction])",
     )
 
     if verbose:
@@ -228,7 +253,7 @@ def get_conv2d_layers(
     for i in range(0, len(n_channels) - 1):
         conv_parameters.append(
             dict(
-                name=f"conv{i+1}",
+                name=f"conv2d{i+1}",
                 type="conv2d",
                 parameters=dict(
                     in_channels=n_channels[i],
@@ -257,6 +282,141 @@ def get_conv2d_layers(
     return conv_parameters
 
 
+def get_sconv2d_layers(
+    input_channels,
+    channels,
+    kernel_sizes,
+    strides,
+    paddings,
+    activations,
+    pooling_funcs,
+    pooling_kernels,
+    pooling_strides,
+    thresholds,
+    decays,
+    pool_thresholds,
+):
+    """Creates a list of dicts with parameters for convolutional layers with the specified dimensions.
+
+    :param input_channels: int, number of input channels.
+    :param channels: list, number of output channels per conv layer.
+    :param kernel_sizes: list, size of kernels to use per conv layer.
+    :param strides: list, stride to use per conv layer.
+    :param activations: list, flag for activation function to use per conv layer.
+    :param pooling_funcs: list, flag for pooling function to use per pooling layer.
+    :param pooling_kernels: list, size of kernels to use per pooling layer.
+    :param pooling_strides: list, stride to use per pooling layer.
+
+    :return conv_parameters: list, containing dicts with layer parameters.
+    """
+
+    n_channels = [input_channels] + channels
+
+    conv_parameters = []
+
+    for i in range(0, len(n_channels) - 1):
+        conv_parameters.append(
+            dict(
+                name=f"conv2d{i+1}",
+                type="conv2d",
+                parameters=dict(
+                    in_channels=n_channels[i],
+                    out_channels=n_channels[i + 1],
+                    kernel_size=kernel_sizes[i],
+                    stride=strides[i],
+                    padding=paddings[i],
+                    bias=False,
+                ),
+            )
+        )
+        conv_parameters.append(
+            dict(
+                name=f"activation_conv{i+1}",
+                type=activations[i],
+                parameters=dict(threshold=thresholds[i], decay=decays[i],),
+            )
+        )
+        if pooling_kernels[i] > 1:
+            conv_parameters.append(
+                dict(
+                    name=f"pool{i+1}",
+                    type=f"avgpool2d",
+                    parameters=dict(
+                        kernel_size=pooling_kernels[i], stride=pooling_strides[i],
+                    ),
+                )
+            )
+            conv_parameters.append(
+                dict(
+                    name=f"activation_pool{i + 1}",
+                    type="spool",
+                    parameters=dict(threshold=pool_thresholds[i]),
+                )
+            )
+
+    return conv_parameters
+
+
+def get_convtranspose2d_layers(
+    input_channels,
+    channels,
+    kernel_sizes,
+    strides,
+    activations,
+    unpooling_funcs,
+    unpooling_kernels,
+    unpooling_strides,
+):
+    """Creates a list of dicts with parameters for convolutional layers with the specified dimensions.
+
+    :param input_channels: int, number of input channels.
+    :param channels: list, number of output channels per conv layer.
+    :param kernel_sizes: list, size of kernels to use per conv layer.
+    :param strides: list, stride to use per conv layer.
+    :param activations: list, flag for activation function to use per conv layer.
+    :param pooling_funcs: list, flag for pooling function to use per pooling layer.
+    :param pooling_kernels: list, size of kernels to use per pooling layer.
+    :param pooling_strides: list, stride to use per pooling layer.
+
+    :return conv_parameters: list, containing dicts with layer parameters.
+    """
+
+    n_channels = [input_channels] + channels
+
+    conv_parameters = []
+
+    for i in range(0, len(n_channels) - 1):
+        conv_parameters.append(
+            dict(
+                name=f"convT2d{i+1}",
+                type="convt2d",
+                parameters=dict(
+                    in_channels=n_channels[i],
+                    out_channels=n_channels[i + 1],
+                    kernel_size=kernel_sizes[i],
+                    stride=strides[i],
+                    padding=0,
+                    bias=False,
+                ),
+            )
+        )
+        conv_parameters.append(
+            dict(name=f"activation_conv{i+1}", type=activations[i], parameters=dict(),)
+        )
+        if unpooling_kernels[i] > 1:
+            conv_parameters.append(
+                dict(
+                    name=f"unpool{i+1}",
+                    type=f"maxunpool2d",
+                    parameters=dict(
+                        kernel_size=unpooling_kernels[i], stride=unpooling_strides[i],
+                    ),
+                )
+            )
+
+    return conv_parameters
+
+
 def build_layers(parameter_list):
     """Creates a ModuleDict network layers with the specified dimensions.
 
@@ -274,16 +434,28 @@ def build_layers(parameter_list):
             params = layer_parameters["parameters"]
             if type_ == "relu":
                 layer = nn.ReLU(**params)
+            elif type_ == "sigmoid":
+                layer = nn.Sigmoid(**params)
             elif type_ == "softmax":
                 layer = nn.Softmax(dim=1, **params)
+            elif type_ == "logsoftmax":
+                layer = nn.LogSoftmax(dim=1, **params)
+            elif type_ == "lif":
+                layer = LIF_sNeuron(**params)
+            elif type_ == "spool":
+                layer = Pooling_sNeuron(**params)
             elif type_ == "fc":
                 layer = nn.Linear(**params)
             elif type_ == "conv2d":
                 layer = nn.Conv2d(**params)
+            elif type_ == "convt2d":
+                layer = nn.ConvTranspose2d(**params)
             elif type_ == "avgpool2d":
                 layer = nn.AvgPool2d(**params)
             elif type_ == "maxpool2d":
                 layer = nn.MaxPool2d(**params)
+            elif type_ == "maxunpool2d":
+                layer = nn.MaxUnpool2d(**params)
             else:
                 raise NotImplementedError(
                     f"The layer {layer_parameters['type'].lower()} is not implemented."
@@ -398,7 +570,7 @@ def get_backend(args):
     return device
 
 
-def get_loss_function(loss, verbose=True):
+def get_loss_function(loss, verbose=True, spiking=False):
     """Sets the requested loss function if available
 
     :param loss: str, name of the loss function to use during training.
@@ -410,7 +582,10 @@ def get_loss_function(loss, verbose=True):
     if loss.lower() == "crossentropy":
         loss_function = torch.nn.CrossEntropyLoss()
     elif loss.lower() == "mse":
-        loss_function = torch.nn.MSELoss()
+        if spiking:
+            loss_function = torch.nn.MSELoss(size_average=False)
+        else:
+            loss_function = torch.nn.MSELoss()
     else:
         raise NotImplementedError(
             f"The loss function {loss} is not implemented.\n"
@@ -447,6 +622,30 @@ def get_optimizer(optim, model, lr, wd, verbose=True):
         print(f"Initialized optimizer:\n{optimizer}\n")
 
     return optimizer
+
+
+class RunningAverage:
+    """A simple class that maintains the running average of a quantity
+
+    Example:
+    ```
+    loss_avg = RunningAverage()
+    loss_avg.update(2)
+    loss_avg.update(4)
+    loss_avg() = 3
+    ```
+    """
+
+    def __init__(self):
+        self.steps = 0
+        self.total = 0
+
+    def update(self, val):
+        self.total += val
+        self.steps += 1
+
+    def __call__(self):
+        return self.total / float(self.steps)
 
 
 if __name__ == "__main__":
@@ -502,7 +701,8 @@ if __name__ == "__main__":
         input_size=1000,
         hidden_sizes=args.hidden_sizes,
         output_size=10,
-        activations=[args.activation for i in range(len(args.hidden_sizes))] + ["softmax"]
+        activations=[args.activation for i in range(len(args.hidden_sizes))]
+        + ["softmax"],
     )
     fc_parameters = get_fc_layers(**fc_args)  # args.hidden_sizes, 10)
     model.fc_layers = build_layers(conv_parameters)
