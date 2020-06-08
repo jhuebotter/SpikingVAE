@@ -81,6 +81,13 @@ def get_argparser(description="", verbose=True):
         help="mini-batch size (default: 64)",
     )
     parser.add_argument(
+        "--epoch_batches",
+        default=0,
+        type=int,
+        metavar="EB",
+        help="limits number of batches per epoch; 0 = no limit (default: 0)",
+    )
+    parser.add_argument(
         "--activation",
         default="relu",
         type=str,

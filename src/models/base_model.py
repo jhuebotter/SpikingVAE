@@ -507,7 +507,6 @@ class SpikingBaseModel:
     def grad_cal(self, decay, LF_output, Total_output):
         Total_output = Total_output + (Total_output < 1e-3).type(torch.cuda.FloatTensor)
         out = LF_output.gt(1e-3).type(torch.cuda.FloatTensor) + math.log(decay) * torch.div(LF_output, Total_output)
-        print(out.size())
         return out
 
     def step(self, data_batch, target_batch, train=False):
@@ -522,19 +521,25 @@ class SpikingBaseModel:
 
         if train:
             self.optimizer.zero_grad()
+
         out_batch = self.model(data_batch, steps=self.steps)
 
-        for key, value in out_batch.items():
-            print(f"{key}: {[len(v) for v in value]}")
+        #for key, value in out_batch.items():
+        #    print(f"{key}: {[len(v) for v in value]}")
 
         if train:
             # compute gradient
             gradients = [self.grad_cal(self.decay, out_batch["lf_outs"][i], out_batch["total_outs"][i]) for i in range(len(out_batch["total_outs"])-1)]
-            print(self.steps)
+
+            #print([d.size() for d in gradients])
+            #print([d.size() for d in out_batch["out_temps"][0]][0])
+            #print([d.size() for d in out_batch["out_temps"][1]][0])
+            #print([d.size() for d in out_batch["out_temps"][2]][0])
+
             # apply gradient
             for t in range(self.steps):
                 for i in range(len(gradients)):
-                    out_batch["out_temps"][i][t].register_hook(lambda grad: torch.mul(grad, gradients[i]))
+                    out_batch["out_temps"][i][t].register_hook(lambda grad, i=i: torch.mul(grad, gradients[i]))
 
         targetN = out_batch["output"].data.clone().zero_()
         targetN.scatter_(1, target_batch.unsqueeze(1), 1)
@@ -551,9 +556,6 @@ class SpikingBaseModel:
         )
         result.update(out_batch)
 
-
-
-
         if train:
             loss.backward()
             self.optimizer.step()
@@ -564,7 +566,7 @@ class SpikingBaseModel:
 
         return result
 
-    def train(self, train_loader, epoch, metrics={}):
+    def train(self, train_loader, epoch, metrics={}, max_epoch_batches=0):
         """Train the model for a single epoch.
 
         :param train_loader: DataLoader object, containing training data.
@@ -579,7 +581,9 @@ class SpikingBaseModel:
 
         loss_avg = u.RunningAverage()
 
-        with tqdm(total=len(train_loader)) as t:
+
+
+        with tqdm(total=len(train_loader) if not max_epoch_batches else max_epoch_batches) as t:
             for batch_idx, (data_batch, target_batch) in enumerate(train_loader):
                 data_batch = data_batch.to(self.device)
                 target_batch = target_batch.to(self.device)
@@ -597,6 +601,9 @@ class SpikingBaseModel:
 
                 t.set_postfix(loss="{:05.4f}".format(loss_avg()))
                 t.update()
+
+                if batch_idx+1 == max_epoch_batches:
+                    break
 
         # create the results dict
         train_results = dict(loss=loss_avg())
@@ -766,6 +773,7 @@ class SpikingBaseModel:
             eval_first=True,
             samplers=[],
             sample_freq=0,
+            epoch_batches=0,
     ):
         """
         Runs training on the training set for the set number of epochs while continuously evaluating and logging.
@@ -826,7 +834,7 @@ class SpikingBaseModel:
 
         # Train for desired number of epochs
         for epoch in range(start_epoch, start_epoch + epochs):
-            train_results = self.train(train_loader, epoch, metrics)
+            train_results = self.train(train_loader, epoch, metrics, epoch_batches)
             val_results, samples = self.evaluate(val_loader, metrics, samplers, sample_freq)
 
             train_loss = train_results["loss"]

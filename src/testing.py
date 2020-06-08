@@ -9,9 +9,12 @@ from tqdm import tqdm
 parser = u.get_argparser()
 args = parser.parse_args()
 args.loss = "mse"
+args.dataset = "mnist"
+args.hidden_sizes = [200]
 args.conv_channels = "20, 50"
 args.conv_channels = [int(item) for item in args.conv_channels.split(',')]
-
+args.epoch_batches = 50
+args.epochs = 10
 # choose the devices for computation (GPU if available)
 device = u.get_backend(args)
 
@@ -43,11 +46,11 @@ net = SpikingConvolutionalClassifier(
     stride=1,
     padding=2,
     pooling_kernel=2,
-    pooling_stride=1,
+    pooling_stride=2,
     activation="lif",
     activation_out="lif",
     pooling="avg",
-    steps=20,
+    steps=100,
     threshold=1,
     decay=0.99,
     pool_threshold=0.75,
@@ -59,11 +62,12 @@ net = SpikingConvolutionalClassifier(
 net.train_and_evaluate(
     train_loader=train_loader,
     val_loader=val_loader,
-    epochs=1,
+    epochs=args.epochs,
     model_name="spiking_test",
     metrics=["accuracy"],
     key_metric="validation loss",
     goal="minimize",
+    epoch_batches=args.epoch_batches,
 )
 
 
