@@ -32,32 +32,32 @@ def get_argparser(description="", verbose=True):
     )
     parser.add_argument(
         "--model",
-        default="cnn_autoencoder",
+        default="scnn_autoencoder",
         type=str,
         help="model used for training or evaluation [fcn_classifier, cnn_classifier] (default: cnn_classifier)",
     )
     parser.add_argument(
         "--dataset",
-        default="fashion",
+        default="mnist",
         type=str,
         help="dataset used for training or evaluation [mnist, fashion] (default: mnist)",
     )
     parser.add_argument(
         "--loss",
-        default="crossentropy",
+        default="mse",
         type=str,
         help="loss function used for training [crossentropy, mse] (default: crossentropy)",
     )
     parser.add_argument(
         "--metrics",
         nargs="+",
-        default=["accuracy"],
+        default=[], #["accuracy"],
         type=str,
         help="metrics to calculate on the output of the network (default: [accuracy])",
     )
     parser.add_argument(
         "--key_metric",
-        default="validation_loss",
+        default="validation loss",
         type=str,
         help="metric to monitor for comparing model performance (default: validation_loss)",
     )
@@ -89,15 +89,15 @@ def get_argparser(description="", verbose=True):
     )
     parser.add_argument(
         "--activation",
-        default="relu",
+        default="lif",
         type=str,
-        help="activation function = [relu] (default: relu)",
+        help="activation function = [softmax, logsoftmax, sigmoid, relu, lif] (default: lif)",
     )
     parser.add_argument(
         "--activation_out",
-        default="logsoftmax",
+        default="lif",
         type=str,
-        help="activation function for the output layer [softmax, logsoftmax, sigmoid, relu] (default: logsoftmax)",
+        help="activation function for the output layer [softmax, logsoftmax, sigmoid, relu, lif] (default: logsoftmax)",
     )
     parser.add_argument(
         "--pooling",
@@ -107,11 +107,50 @@ def get_argparser(description="", verbose=True):
     )
     parser.add_argument(
         "--conv_channels",
-        default="16, 32, 64",
+        default="16, 32",
         type=str,
         metavar="CC",
-        help="comma seperated string with numbers of channels in convolutional layers (default: [16, 32, 64])",
+        help="comma separated string with numbers of channels in convolutional layers (default: [16, 32, 64])",
     )
+    parser.add_argument(
+        "--decay",
+        type=float,
+        default=0.99,
+        help="temporal decay variable for LIF neurons (default: 0.99)"
+    )
+    parser.add_argument(
+        "--threshold",
+        type=float,
+        default=1.0,
+        help="firing threshold for LIF neurons (default: 1.0)"
+    )
+    parser.add_argument(
+        "--steps",
+        type=int,
+        default=50,
+        help="timesteps per example for spiking networks (default: 50)"
+    )
+    parser.add_argument(
+        "--padding",
+        type=int,
+        default=1,
+        help="padding to use in convolutional layers (default: 1)"
+    )
+    parser.add_argument(
+        "--stride",
+        type=int,
+        default=1,
+        help="stride to use in convolutional layers (default: 1)"
+    )
+    parser.add_argument(
+        "--kernel_size",
+        type=int,
+        default=5,
+        help="kernel size to use in convolutional layers (default: 5)"
+    )
+
+
+
     # parser.add_argument(
     #    "--conv_channels",
     #    nargs="+",
@@ -139,15 +178,15 @@ def get_argparser(description="", verbose=True):
     parser.add_argument(
         "--wd",
         "--weight_decay",
-        default=0,
+        default=0.0,
         type=float,
         metavar="WD",
-        help="weight decay (default: 0)",
+        help="weight decay (default: 0.0)",
     )
     parser.add_argument(
         "--eval_first",
         action="store_true",
-        default=False,
+        default=True,
         help="evaluates a model before training starts (default: True)",
     )
     parser.add_argument(
@@ -195,7 +234,7 @@ def get_argparser(description="", verbose=True):
     return parser
 
 
-def get_fc_layers(input_size, hidden_sizes, output_size, activations):
+def get_fc_layers(input_size, hidden_sizes, output_size, activations, bias=True):
     """Creates a list of dicts with parameters for fully connected layers with the specified dimensions.
 
     :param input_size: int, size of the flattend input.
@@ -216,7 +255,7 @@ def get_fc_layers(input_size, hidden_sizes, output_size, activations):
                 name=f"fc{i+1}",
                 type="fc",
                 parameters=dict(
-                    in_features=n_nodes[i], out_features=n_nodes[i + 1], bias=True,
+                    in_features=n_nodes[i], out_features=n_nodes[i + 1], bias=bias,
                 ),
             )
         )
@@ -229,15 +268,53 @@ def get_fc_layers(input_size, hidden_sizes, output_size, activations):
     return fc_parameters
 
 
+def get_sfc_layers(input_size, hidden_sizes, output_size, activations, thresholds, decays, bias=False):
+    """Creates a list of dicts with parameters for fully connected layers with the specified dimensions.
+
+    :param input_size: int, size of the flattend input.
+    :param hidden_sizes: list, number of nodes in hidden layers.
+    :param output_size: int, number of output neurons.
+    :param activations: list, flags for the activation fuctions to use.
+
+    :return fc_parameters: list containing dicts with layer parameters.
+    """
+
+    n_nodes = [input_size] + hidden_sizes + [output_size]
+
+    fc_parameters = []
+
+    for i in range(0, len(n_nodes) - 1):
+        fc_parameters.append(
+            dict(
+                name=f"fc{i+1}",
+                type="fc",
+                parameters=dict(
+                    in_features=n_nodes[i], out_features=n_nodes[i + 1], bias=bias,
+                ),
+            )
+        )
+        fc_parameters.append(
+            dict(
+                name=f"activation_fc{i+1}", type=f"{activations[i]}", parameters=dict(
+                    threshold=thresholds[i], decay=decays[i],
+                ),
+            ),
+        )
+
+    return fc_parameters
+
+
 def get_conv2d_layers(
     input_channels,
     channels,
     kernel_sizes,
     strides,
+    paddings,
     activations,
     pooling_funcs,
     pooling_kernels,
     pooling_strides,
+    bias=False,
 ):
     """Creates a list of dicts with parameters for convolutional layers with the specified dimensions.
 
@@ -267,8 +344,8 @@ def get_conv2d_layers(
                     out_channels=n_channels[i + 1],
                     kernel_size=kernel_sizes[i],
                     stride=strides[i],
-                    padding=0,
-                    bias=False,
+                    padding=paddings[i],
+                    bias=bias,
                 ),
             )
         )
@@ -369,6 +446,7 @@ def get_convtranspose2d_layers(
     channels,
     kernel_sizes,
     strides,
+    paddings,
     activations,
     unpooling_funcs,
     unpooling_kernels,
@@ -402,7 +480,7 @@ def get_convtranspose2d_layers(
                     out_channels=n_channels[i + 1],
                     kernel_size=kernel_sizes[i],
                     stride=strides[i],
-                    padding=0,
+                    padding=paddings[i],
                     bias=False,
                 ),
             )
@@ -418,6 +496,81 @@ def get_convtranspose2d_layers(
                     parameters=dict(
                         kernel_size=unpooling_kernels[i], stride=unpooling_strides[i],
                     ),
+                )
+            )
+
+    return conv_parameters
+
+
+def get_sconvtranspose2d_layers(
+    input_channels,
+    channels,
+    kernel_sizes,
+    strides,
+    paddings,
+    activations,
+    unpooling_funcs,
+    unpooling_kernels,
+    unpooling_strides,
+    thresholds,
+    decays,
+    pool_thresholds,
+):
+    """Creates a list of dicts with parameters for convolutional layers with the specified dimensions.
+
+    :param input_channels: int, number of input channels.
+    :param channels: list, number of output channels per conv layer.
+    :param kernel_sizes: list, size of kernels to use per conv layer.
+    :param strides: list, stride to use per conv layer.
+    :param activations: list, flag for activation function to use per conv layer.
+    :param pooling_funcs: list, flag for pooling function to use per pooling layer.
+    :param pooling_kernels: list, size of kernels to use per pooling layer.
+    :param pooling_strides: list, stride to use per pooling layer.
+
+    :return conv_parameters: list, containing dicts with layer parameters.
+    """
+
+    n_channels = [input_channels] + channels
+
+    conv_parameters = []
+
+    for i in range(0, len(n_channels) - 1):
+        conv_parameters.append(
+            dict(
+                name=f"convT2d{i+1}",
+                type="convt2d",
+                parameters=dict(
+                    in_channels=n_channels[i],
+                    out_channels=n_channels[i + 1],
+                    kernel_size=kernel_sizes[i],
+                    stride=strides[i],
+                    padding=paddings[i],
+                    bias=False,
+                ),
+            )
+        )
+        conv_parameters.append(
+            dict(
+                name=f"activation_conv{i+1}",
+                type=activations[i],
+                parameters=dict(threshold=thresholds[i], decay=decays[i],),
+            )
+        )
+        if unpooling_kernels[i] > 1:
+            conv_parameters.append(
+                dict(
+                    name=f"unpool{i+1}",
+                    type=f"maxunpool2d",
+                    parameters=dict(
+                        kernel_size=unpooling_kernels[i], stride=unpooling_strides[i],
+                    ),
+                )
+            )
+            conv_parameters.append(
+                dict(
+                    name=f"activation_pool{i + 1}",
+                    type="spool",
+                    parameters=dict(threshold=pool_thresholds[i]),
                 )
             )
 

@@ -4,7 +4,7 @@ from models.base_model import BaseModel
 import utils as u
 
 
-class ConvolutionalNeuralNetwork(BaseModel):
+class ConvolutionalClassifier(BaseModel):
     def __init__(
         self,
         input_width,
@@ -20,6 +20,7 @@ class ConvolutionalNeuralNetwork(BaseModel):
         device,
         kernel_size=3,
         stride=1,
+        padding=0,
         pooling_kernel=2,
         pooling_stride=1,
         activation="relu",
@@ -29,7 +30,7 @@ class ConvolutionalNeuralNetwork(BaseModel):
         verbose=True,
         log_func=print,
     ):
-        super(ConvolutionalNeuralNetwork, self).__init__(
+        super(ConvolutionalClassifier, self).__init__(
             input_width=input_width,
             input_height=input_height,
             input_channels=input_channels,
@@ -50,9 +51,10 @@ class ConvolutionalNeuralNetwork(BaseModel):
         self.conv2d_channels = conv2d_channels
         self.kernel_sizes = [kernel_size for i in range(len(conv2d_channels))]
         self.strides = [stride for i in range(len(conv2d_channels))]
+        self.paddings = [padding for i in range(len(conv2d_channels))]
         self.pooling_kernels = [pooling_kernel for i in range(len(conv2d_channels))]
         self.pooling_strides = [pooling_stride for i in range(len(conv2d_channels))]
-        self.model = CNNModel(
+        self.model = CNNClassifierModel(
             input_width=self.input_width,
             input_height=self.input_height,
             input_channels=self.input_channels,
@@ -60,6 +62,7 @@ class ConvolutionalNeuralNetwork(BaseModel):
             hidden_sizes=self.hidden_sizes,
             kernel_sizes=self.kernel_sizes,
             strides=self.strides,
+            paddings=self.paddings,
             pooling_kernels=self.pooling_kernels,
             pooling_strides=self.pooling_strides,
             activation=activation,
@@ -101,7 +104,7 @@ class ConvolutionalNeuralNetwork(BaseModel):
         self.log_func(f"Number of trainable parameters: {self.count_parameters()}")
 
 
-class CNNModel(nn.Module):
+class CNNClassifierModel(nn.Module):
     """Creates a CNN model."""
 
     def __init__(
@@ -113,6 +116,7 @@ class CNNModel(nn.Module):
         hidden_sizes,
         kernel_sizes,
         strides,
+        paddings,
         pooling_kernels,
         pooling_strides,
         activation="relu",
@@ -128,6 +132,7 @@ class CNNModel(nn.Module):
         self.conv2d_channels = conv2d_channels
         self.kernel_sizes = kernel_sizes
         self.strides = strides
+        self.paddings = paddings
         self.pooling_kernels = pooling_kernels
         self.pooling_strides = pooling_strides
         self.hidden_sizes = hidden_sizes
@@ -200,7 +205,7 @@ class CNNModel(nn.Module):
 
 """
 
-        conv_parameters = [
+        model_parameters = [
             dict(
                 name="conv1",
                 type="conv2d",

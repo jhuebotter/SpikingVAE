@@ -48,8 +48,10 @@ Thesis project for MSc. Artificial Intelligence at Vrije Universiteit Amsterdam.
 * [x] Fully parameterized models
 * [x] Fully connected classifier network
 * [x] Convolutional classifier network 
-* [ ] Fully connected autoencoder
-* [ ] Convolutional autoencoder
+* [x] Spiking convolutional classifier network
+* [x] Fully connected autoencoder
+* [x] Convolutional autoencoder
+* [x] Spiking convolutional autoencoder
 * [ ] Fully connected variational autoencoder
 * [ ] Convolutional variational autoencoder
 * [ ] Fully connected spiking autoencoder

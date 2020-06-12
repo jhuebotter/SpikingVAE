@@ -20,6 +20,7 @@ class ConvolutionalAutoencoder(BaseModel):
         device,
         kernel_size=3,
         stride=1,
+        padding=0,
         pooling_kernel=2,
         pooling_stride=1,
         activation="relu",
@@ -49,6 +50,7 @@ class ConvolutionalAutoencoder(BaseModel):
         self.conv2d_channels = conv2d_channels
         self.kernel_sizes = [kernel_size for i in range(len(conv2d_channels))]
         self.strides = [stride for i in range(len(conv2d_channels))]
+        self.paddings = [padding for i in range(len(conv2d_channels))]
         self.pooling_kernels = [pooling_kernel for i in range(len(conv2d_channels))]
         self.pooling_strides = [pooling_stride for i in range(len(conv2d_channels))]
         self.model = CNNAutoencoderModel(
@@ -59,6 +61,7 @@ class ConvolutionalAutoencoder(BaseModel):
             hidden_sizes=self.hidden_sizes,
             kernel_sizes=self.kernel_sizes,
             strides=self.strides,
+            paddings=self.paddings,
             pooling_kernels=self.pooling_kernels,
             pooling_strides=self.pooling_strides,
             activation=activation,
@@ -110,6 +113,7 @@ class CNNAutoencoderModel(nn.Module):
         hidden_sizes,
         kernel_sizes,
         strides,
+        paddings,
         pooling_kernels,
         pooling_strides,
         activation="relu",
@@ -124,6 +128,7 @@ class CNNAutoencoderModel(nn.Module):
         self.conv2d_channels = conv2d_channels
         self.kernel_sizes = kernel_sizes
         self.strides = strides
+        self.paddings = paddings
         self.pooling_kernels = pooling_kernels
         self.pooling_strides = pooling_strides
         self.hidden_sizes = hidden_sizes
@@ -135,6 +140,7 @@ class CNNAutoencoderModel(nn.Module):
             channels=self.conv2d_channels,
             kernel_sizes=self.kernel_sizes,
             strides=self.strides,
+            paddings=self.paddings,
             activations=[activation for i in range(len(self.conv2d_channels))],
             pooling_funcs=[pooling for i in range(len(self.conv2d_channels))],
             pooling_kernels=self.pooling_kernels,
@@ -185,6 +191,8 @@ class CNNAutoencoderModel(nn.Module):
         decoder_convtranspose2d_channels.reverse()
         decoder_strides = self.strides
         decoder_strides.reverse()
+        decoder_paddings = self.paddings
+        decoder_paddings.reverse()
         unpooling_kernels = self.pooling_kernels
         unpooling_kernels.reverse()
         unpooling_strides = self.pooling_strides
@@ -195,6 +203,7 @@ class CNNAutoencoderModel(nn.Module):
             channels=decoder_convtranspose2d_channels,
             kernel_sizes=decoder_kernel_sizes,
             strides=decoder_strides,
+            paddings=decoder_paddings,
             activations=[activation for i in range(len(self.conv2d_channels) - 1)] + [activation_out],
             unpooling_funcs=[pooling for i in range(len(self.conv2d_channels))],
             unpooling_kernels=unpooling_kernels,

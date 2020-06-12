@@ -8,7 +8,7 @@ import math
 import torch.nn.functional as F
 
 
-class SpikingConvolutionalClassifier(SpikingBaseModel):
+class SpikingConvolutionalAutoencoder(SpikingBaseModel):
     def __init__(
         self,
         input_width,
@@ -34,11 +34,10 @@ class SpikingConvolutionalClassifier(SpikingBaseModel):
         threshold=1,
         decay=0.99,
         pool_threshold=0.75,
-        n_out=2,
         verbose=True,
         log_func=print,
     ):
-        super(SpikingConvolutionalClassifier, self).__init__(
+        super(SpikingConvolutionalAutoencoder, self).__init__(
             input_width=input_width,
             input_height=input_height,
             input_channels=input_channels,
@@ -55,9 +54,9 @@ class SpikingConvolutionalClassifier(SpikingBaseModel):
 
         # initialize model
         if verbose:
-            self.log_func("Initializing spiking convolutional neural network...")
+            self.log_func("Initializing spiking convolutional autoencoder...")
 
-        self.n_out = n_out
+        self.task = "reconstruction"
         self.hidden_sizes = hidden_sizes
         self.conv2d_channels = conv2d_channels
         self.kernel_sizes = [kernel_size for i in range(len(conv2d_channels))]
@@ -65,7 +64,7 @@ class SpikingConvolutionalClassifier(SpikingBaseModel):
         self.paddings = [padding for i in range(len(conv2d_channels))]
         self.pooling_kernels = [pooling_kernel for i in range(len(conv2d_channels))]
         self.pooling_strides = [pooling_stride for i in range(len(conv2d_channels))]
-        self.model = SCNNModel(
+        self.model = SCNNAutoencoderModel(
             input_width=self.input_width,
             input_height=self.input_height,
             input_channels=self.input_channels,
@@ -82,7 +81,6 @@ class SpikingConvolutionalClassifier(SpikingBaseModel):
             threshold=threshold,
             decay=decay,
             pool_threshold=pool_threshold,
-            n_out=n_out,
             device=device,
             steps=steps,
         )
@@ -110,17 +108,16 @@ class SpikingConvolutionalClassifier(SpikingBaseModel):
             .to(self.device)
         )
 
-        x_ = self.model.convs(x)
+        x_ = self.model.conv_encode(x)
 
         self.log_func(f"Input shape: {x.shape}")
         self.log_func(f"Shape after convolution: {x_[0].shape}")
-        self.log_func(f"Output shape: {self.n_out}")
         self.log_func(f"Network architecture:")
         self.log_func(self.model)
         self.log_func(f"Number of trainable parameters: {self.count_parameters()}")
 
 
-class SCNNModel(nn.Module):
+class SCNNAutoencoderModel(nn.Module):
     """Creates a CNN model."""
 
     def __init__(
@@ -142,10 +139,9 @@ class SCNNModel(nn.Module):
         threshold=1,
         decay=0.99,
         pool_threshold=0.75,
-        n_out=2,
         device="cuda",
     ):
-        super(SCNNModel, self).__init__()
+        super(SCNNAutoencoderModel, self).__init__()
 
         self.input_width = input_width
         self.input_height = input_height
@@ -157,15 +153,11 @@ class SCNNModel(nn.Module):
         self.pooling_kernels = pooling_kernels
         self.pooling_strides = pooling_strides
         self.hidden_sizes = hidden_sizes
-        self.fc_activations = [activation for i in range(len(hidden_sizes))] + [
-            activation_out
-        ]
-        self.n_out = n_out
         self.device = device
         self.steps = steps
 
-        # define convolutional layers
-        conv_args = dict(
+        # define convolutional encoder layers
+        sconv_encoder_args = dict(
             input_channels=self.input_channels,
             channels=self.conv2d_channels,
             kernel_sizes=self.kernel_sizes,
@@ -179,30 +171,81 @@ class SCNNModel(nn.Module):
             decays=[decay for i in range(len(self.conv2d_channels))],
             pool_thresholds=[pool_threshold for i in range(len(self.conv2d_channels))],
         )
-        sconv_parameters = u.get_sconv2d_layers(**conv_args)
-        self.conv_layers = u.build_layers(sconv_parameters)
+        sconv_encoder_parameters = u.get_sconv2d_layers(**sconv_encoder_args)
+        self.conv_encoder_layers = u.build_layers(sconv_encoder_parameters)
 
         # get flattend input size
         x = torch.randn(self.input_channels, self.input_width, self.input_height).view(
             -1, self.input_channels, self.input_width, self.input_height
         )
-        x_ = self.convs(x)
+        x_ = self.conv_encode(x)
         self._to_linear = x_[0].shape[0] * x_[0].shape[1] * x_[0].shape[2]
+        self._from_linear = (x_[0].shape[0], x_[0].shape[1], x_[0].shape[2])
 
-        # define fully connected layers
-        fc_args = dict(
+        # define fully connected encoder layers
+        self.fc_encoder_activations = [activation for i in range(len(hidden_sizes))]
+
+        sfc_encoder_args = dict(
             input_size=self._to_linear,
-            hidden_sizes=self.hidden_sizes,
-            output_size=self.n_out,
-            activations=self.fc_activations,
-            thresholds=[threshold for i in range(len(self.fc_activations))],
-            decays=[decay for i in range(len(self.fc_activations))],
+            hidden_sizes=self.hidden_sizes[:-1],
+            output_size=self.hidden_sizes[-1],
+            activations=self.fc_encoder_activations,
+            thresholds=[threshold for i in range(len(self.fc_encoder_activations))],
+            decays=[decay for i in range(len(self.fc_encoder_activations))],
         )
 
-        fc_parameters = u.get_sfc_layers(**fc_args)
-        self.fc_layers = u.build_layers(fc_parameters)
+        sfc_encoder_parameters = u.get_sfc_layers(**sfc_encoder_args)
+        self.fc_encoder_layers = u.build_layers(sfc_encoder_parameters)
 
-    def convs(self, x):
+        # define fully connected decoder layers
+        self.fc_decoder_activations = [activation for i in range(len(hidden_sizes))]
+        decoder_sizes = self.hidden_sizes[:-1]
+        decoder_sizes.reverse()
+
+        sfc_decoder_args = dict(
+            input_size=self.hidden_sizes[-1],
+            hidden_sizes=decoder_sizes,
+            output_size=self._to_linear,
+            activations=self.fc_decoder_activations,
+            thresholds=[threshold for i in range(len(self.fc_encoder_activations))],
+            decays=[decay for i in range(len(self.fc_encoder_activations))],
+        )
+
+        sfc_decoder_parameters = u.get_sfc_layers(**sfc_decoder_args)
+        self.fc_decoder_layers = u.build_layers(sfc_decoder_parameters)
+
+        # define convolutional decoder layers
+        decoder_kernel_sizes = self.kernel_sizes
+        decoder_kernel_sizes.reverse()
+        decoder_convtranspose2d_channels = [self.input_channels] + self.conv2d_channels[:-1]
+        decoder_convtranspose2d_channels.reverse()
+        decoder_strides = self.strides
+        decoder_strides.reverse()
+        decoder_paddings = self.paddings
+        decoder_paddings.reverse()
+        unpooling_kernels = self.pooling_kernels
+        unpooling_kernels.reverse()
+        unpooling_strides = self.pooling_strides
+        unpooling_strides.reverse()
+
+        sconv_decoder_args = dict(
+            input_channels=x_[0].shape[0],
+            channels=decoder_convtranspose2d_channels,
+            kernel_sizes=decoder_kernel_sizes,
+            strides=decoder_strides,
+            paddings=decoder_paddings,
+            activations=[activation for i in range(len(self.conv2d_channels) - 1)] + [activation_out],
+            unpooling_funcs=[pooling for i in range(len(self.conv2d_channels))],
+            unpooling_kernels=unpooling_kernels,
+            unpooling_strides=unpooling_strides,
+            thresholds=[threshold for i in range(len(self.conv2d_channels))],
+            decays=[decay for i in range(len(self.conv2d_channels))],
+            pool_thresholds=[pool_threshold for i in range(len(self.conv2d_channels))],
+        )
+        sconv_decoder_parameters = u.get_sconvtranspose2d_layers(**sconv_decoder_args)
+        self.conv_decoder_layers = u.build_layers(sconv_decoder_parameters)
+
+    def conv_encode(self, x):
         """Passes data through convolutional layers.
 
         :param x: Tensor with input data.
@@ -211,7 +254,7 @@ class SCNNModel(nn.Module):
         """
 
         conv_modules = [
-            c for c in self.conv_layers.values() if type(c) in [nn.Conv2d, nn.AvgPool2d]
+            c for c in self.conv_encoder_layers.values() if type(c) in [nn.Conv2d, nn.AvgPool2d]
         ]
 
         for layer in conv_modules:
@@ -227,8 +270,7 @@ class SCNNModel(nn.Module):
         :return Tensor with output data.
         """
         modules = [
-            m
-            for m in self.modules()
+            m for m in self.modules()
             if not issubclass(type(m), nn.modules.container.ModuleDict)
         ]
 
@@ -248,7 +290,7 @@ class SCNNModel(nn.Module):
         with torch.no_grad():
             p = x.clone()
             # print(p.size())
-            for name, layer in self.conv_layers.items():
+            for name, layer in self.conv_encoder_layers.items():
                 # print(f"layer {name}: {layer}\n input shape: {p.size()}")
                 if type(layer) == LIF_sNeuron:
                     LF_outs.append(
@@ -268,7 +310,7 @@ class SCNNModel(nn.Module):
                 # print("output shape:", p.size())
                 # print()
             p = p.view(p.size(0), -1)
-            for i, (name, layer) in enumerate(self.fc_layers.items()):
+            for i, (name, layer) in enumerate(self.fc_encoder_layers.items()):
                 # print(f"layer {name}: {layer}\n input shape: {p.size()}")
                 if type(layer) == LIF_sNeuron:
                     LF_outs.append(
@@ -279,7 +321,45 @@ class SCNNModel(nn.Module):
                     )
                 if type(layer) not in [LIF_sNeuron, Pooling_sNeuron]:
                     p = layer(p)
-                    last = i == len(self.fc_layers.items()) - 1
+                    membrane_potentials.append(
+                        torch.zeros(p.size(), requires_grad=False, device=self.device)
+                    )
+                    leaky_cum_membrane_potentials.append(
+                        torch.zeros(p.size(), requires_grad=False, device=self.device)
+                    )
+
+            for name, layer in self.fc_decoder_layers.items():
+                # print(f"layer {name}: {layer}\n input shape: {p.size()}")
+                if type(layer) == LIF_sNeuron:
+                    LF_outs.append(
+                        torch.zeros(p.size(), requires_grad=False, device=self.device)
+                    )
+                    total_outs.append(
+                        torch.zeros(p.size(), requires_grad=False, device=self.device)
+                    )
+                if type(layer) not in [LIF_sNeuron, Pooling_sNeuron]:
+                    p = layer(p)
+                    membrane_potentials.append(
+                        torch.zeros(p.size(), requires_grad=False, device=self.device)
+                    )
+                    leaky_cum_membrane_potentials.append(
+                        torch.zeros(p.size(), requires_grad=False, device=self.device)
+                    )
+
+            p = p.view(-1, *self._from_linear)
+
+            for i, (name, layer) in enumerate(self.conv_decoder_layers.items()):
+                # print(f"layer {name}: {layer}\n input shape: {p.size()}")
+                if type(layer) == LIF_sNeuron:
+                    LF_outs.append(
+                        torch.zeros(p.size(), requires_grad=False, device=self.device)
+                    )
+                    total_outs.append(
+                        torch.zeros(p.size(), requires_grad=False, device=self.device)
+                    )
+                if type(layer) not in [LIF_sNeuron, Pooling_sNeuron]:
+                    p = layer(p)
+                    last = i == len(self.fc_decoder_layers.items()) - 1
                     membrane_potentials.append(
                         torch.zeros(p.size(), requires_grad=last, device=self.device)
                     )
@@ -302,7 +382,7 @@ class SCNNModel(nn.Module):
             out = torch.mul(Poisson_d_input, torch.sign(x))
             input_history.append(out.detach())
             i, j = 0, 0
-            for name, layer in self.conv_layers.items():
+            for name, layer in self.conv_encoder_layers.items():
                 # print(f"layer {name}: {layer}\n"
                 #      f"input size: {out.size()}")
                 if type(layer) == LIF_sNeuron:
@@ -340,7 +420,7 @@ class SCNNModel(nn.Module):
 
             out = out.view(out.size(0), -1)
 
-            for name, layer in self.fc_layers.items():
+            for name, layer in self.fc_encoder_layers.items():
                 # print(f"layer {name}: {layer}\n input size: {out.size()}")
                 if type(layer) == LIF_sNeuron:
                     # print("spiking threshold:", layer.threshold)
@@ -366,13 +446,66 @@ class SCNNModel(nn.Module):
                     )
                     cum_potential_history[i].append(leaky_cum_membrane_potentials[i].detach())
 
-        #output = F.log_softmax(leaky_cum_membrane_potentials[-1] / steps, dim=1)
+            for name, layer in self.fc_decoder_layers.items():
+                # print(f"layer {name}: {layer}\n input size: {out.size()}")
+                if type(layer) == LIF_sNeuron:
+                    # print("spiking threshold:", layer.threshold)
+                    # print("membrane potentials size:", membrane_potentials[i].size())
+                    out, membrane_potentials[i] = layer(membrane_potentials[i])
+                    LF_outs[j], total_outs[j], out = LF_Unit(
+                        layer.decay, LF_outs[j], total_outs[j], out, out_temps[j], t
+                    )
+                    i += 1
+                    j += 1
+                else:
+                    current = layer(out)
+                    membrane_potentials[i] = membrane_potentials[i] + current
+                    potential_history[i].append(membrane_potentials[i].detach())
+
+                    leaky_cum_membrane_potentials[i] = (
+                        leaky_cum_membrane_potentials[i] + current
+                    )
+                    leaky_cum_membrane_potentials[i] = (
+                        0.99 * leaky_cum_membrane_potentials[i].detach()
+                        + leaky_cum_membrane_potentials[i]
+                        - leaky_cum_membrane_potentials[i].detach()
+                    )
+                    cum_potential_history[i].append(leaky_cum_membrane_potentials[i].detach())
+
+            out = out.view(-1, *self._from_linear)
+
+            for name, layer in self.conv_decoder_layers.items():
+                # print(f"layer {name}: {layer}\n input size: {out.size()}")
+                if type(layer) == LIF_sNeuron:
+                    # print("spiking threshold:", layer.threshold)
+                    # print("membrane potentials size:", membrane_potentials[i].size())
+                    out, membrane_potentials[i] = layer(membrane_potentials[i])
+                    LF_outs[j], total_outs[j], out = LF_Unit(
+                        layer.decay, LF_outs[j], total_outs[j], out, out_temps[j], t
+                    )
+                    i += 1
+                    j += 1
+                else:
+                    current = layer(out)
+                    membrane_potentials[i] = membrane_potentials[i] + current
+                    potential_history[i].append(membrane_potentials[i].detach())
+
+                    leaky_cum_membrane_potentials[i] = (
+                        leaky_cum_membrane_potentials[i] + current
+                    )
+                    leaky_cum_membrane_potentials[i] = (
+                        0.99 * leaky_cum_membrane_potentials[i].detach()
+                        + leaky_cum_membrane_potentials[i]
+                        - leaky_cum_membrane_potentials[i].detach()
+                    )
+                    cum_potential_history[i].append(leaky_cum_membrane_potentials[i].detach())
+
+
         output = leaky_cum_membrane_potentials[-1] / steps
-        #print(leaky_cum_membrane_potentials[-1][0] / steps)
-        #print(output[0])
-        #print()
+        #output = F.sigmoid(output)
+
         result = dict(
-            output=output,  # membrane_potentials[-1],
+            output=output,
             total_outs=total_outs,
             lf_outs=LF_outs,
             out_temps=out_temps,

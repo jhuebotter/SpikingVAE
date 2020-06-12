@@ -40,7 +40,7 @@ class WandBLogger(object):
         )
 
         # save models in run dir
-        wandb.save("*.pth")
+        #wandb.save("*.pth")
 
     def watch(self, model):
         # tell logger to watch the model
