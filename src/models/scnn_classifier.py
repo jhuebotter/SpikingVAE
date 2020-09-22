@@ -49,6 +49,7 @@ class SpikingConvolutionalClassifier(SpikingBaseModel):
             threshold=threshold,
             decay=decay,
             device=device,
+            loss=loss,
             verbose=verbose,
             log_func=log_func,
         )
@@ -97,6 +98,8 @@ class SpikingConvolutionalClassifier(SpikingBaseModel):
         self.optimizer = u.get_optimizer(
             optimizer, self.model, self.lr, self.wd, verbose
         )
+
+        # TODO: implement a better solution an delete line as done by base model
 
         # initialize loss function
         self.loss_function = u.get_loss_function(loss, verbose, spiking=True)

@@ -4,7 +4,14 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
-from models.spiking_layers import LIF_sNeuron, Pooling_sNeuron, LF_Unit
+from models.spiking_layers import (
+    LIF_sNeuron,
+    Pooling_sNeuron,
+    LF_Unit,
+    Conv2dLIF,
+    ConvTranspose2dLIF,
+    LinearLIF,
+)
 
 
 def get_argparser(description="", verbose=True):
@@ -20,14 +27,16 @@ def get_argparser(description="", verbose=True):
 
     parser.add_argument(
         "--no-cuda",
-        action="store_true",
+        type=bool,
         default=False,
+        #action="store_false",
         help="disables CUDA training (default: False)",
     )
     parser.add_argument(
         "--verbose",
-        action="store_true",
+        type=bool,
         default=True,
+        #action="store_true",
         help="enables printing messages (default: True)",
     )
     parser.add_argument(
@@ -44,14 +53,14 @@ def get_argparser(description="", verbose=True):
     )
     parser.add_argument(
         "--loss",
-        default="mse",
+        default="custom",
         type=str,
         help="loss function used for training [crossentropy, mse] (default: crossentropy)",
     )
     parser.add_argument(
         "--metrics",
         nargs="+",
-        default=[], #["accuracy"],
+        default=[],  # ["accuracy"],
         type=str,
         help="metrics to calculate on the output of the network (default: [accuracy])",
     )
@@ -75,7 +84,7 @@ def get_argparser(description="", verbose=True):
     )
     parser.add_argument(
         "--batch_size",
-        default=32,
+        default=20,
         type=int,
         metavar="BS",
         help="mini-batch size (default: 64)",
@@ -116,40 +125,38 @@ def get_argparser(description="", verbose=True):
         "--decay",
         type=float,
         default=0.99,
-        help="temporal decay variable for LIF neurons (default: 0.99)"
+        help="temporal decay variable for LIF neurons (default: 0.99)",
     )
     parser.add_argument(
         "--threshold",
         type=float,
         default=1.0,
-        help="firing threshold for LIF neurons (default: 1.0)"
+        help="firing threshold for LIF neurons (default: 1.0)",
     )
     parser.add_argument(
         "--steps",
         type=int,
-        default=50,
-        help="timesteps per example for spiking networks (default: 50)"
-    )
-    parser.add_argument(
-        "--padding",
-        type=int,
-        default=1,
-        help="padding to use in convolutional layers (default: 1)"
-    )
-    parser.add_argument(
-        "--stride",
-        type=int,
-        default=1,
-        help="stride to use in convolutional layers (default: 1)"
+        default=100,
+        help="timesteps per example for spiking networks (default: 50)",
     )
     parser.add_argument(
         "--kernel_size",
         type=int,
         default=5,
-        help="kernel size to use in convolutional layers (default: 5)"
+        help="size of the convolutional kernels to use (default: 5)",
     )
-
-
+    parser.add_argument(
+        "--padding",
+        type=int,
+        default=1,
+        help="padding to use in convolutional layers (default: 1)",
+    )
+    parser.add_argument(
+        "--stride",
+        type=int,
+        default=1,
+        help="stride to use in convolutional layers (default: 1)",
+    )
 
     # parser.add_argument(
     #    "--conv_channels",
@@ -185,8 +192,9 @@ def get_argparser(description="", verbose=True):
     )
     parser.add_argument(
         "--eval_first",
-        action="store_true",
+        type=bool,
         default=True,
+        #action="store_true",
         help="evaluates a model before training starts (default: True)",
     )
     parser.add_argument(
@@ -223,6 +231,139 @@ def get_argparser(description="", verbose=True):
         default=["plot_reconstruction"],
         type=str,
         help="functions to call on sampled network output during evaluations (default: [plot_reconstruction])",
+    )
+    parser.add_argument(
+        "--noise",
+        default=0.0,
+        type=float,
+        metavar="N",
+        help="Gaussian noise added to the input encoding between 0.0 and 1.0 (default: 0.0)",
+    )
+    parser.add_argument(
+        "--scale",
+        default=0.2,
+        type=float,
+        metavar="SC",
+        help="scaling constant for input encoding (default: 0.2)",
+    )
+    parser.add_argument(
+        "--encoder",
+        default="potential",
+        type=str,
+        metavar="EN",
+        help="encoding method to use from 'first', 'potential', or 'spike' (default: 'first')",
+    )
+    parser.add_argument(
+        "--decoder",
+        default="max",
+        type=str,
+        metavar="DE",
+        help="output decoding method to use from 'last' or 'max' (default: 'max')",
+    )
+    parser.add_argument(
+        "--grad_clip",
+        default=0.0,
+        type=float,
+        metavar="GC",
+        help="Value to clip gradients at each step, 0 = no clip (default: 0.0)",
+    )
+    parser.add_argument(
+        "--extra_grad",
+        type=bool,
+        default=False,
+        #action="store_false",
+        help="uses extra gradient calculation from paper XY (default: False)",
+    )
+    parser.add_argument(
+        "--adapt_threshold",
+        type=bool,
+        default=False,
+        #action="store_false",
+        help="changes the firing threshold over time (default: False)",
+    )
+    parser.add_argument(
+        "--threshold_width",
+        default=0.1,
+        type=float,
+        metavar="TW",
+        help="defines the distance from initial to max / min threshold (default: 0.1)",
+    )
+    parser.add_argument(
+        "--delta_threshold",
+        default=0.001,
+        type=float,
+        metavar="DT",
+        help="Value to increase threshold by on each spike (default: 0.001)",
+    )
+    parser.add_argument(
+        "--rho",
+        default=0.001,
+        type=float,
+        metavar="RH",
+        help="Value to increase weights by when inactive (default: 0.001)",
+    )
+    parser.add_argument(
+        "--epsilon",
+        default=0.05,
+        type=float,
+        metavar="EP",
+        help="Value to scale decreasing thresholds by (default: 0.05)",
+    )
+    parser.add_argument(
+        "--lambd1",
+        default=0.0,
+        type=float,
+        metavar="LA",
+        help="weight of the bursting loss term 1 (default: 0.01)",
+    )
+    parser.add_argument(
+        "--lambd2",
+        default=0.0,
+        type=float,
+        metavar="LA",
+        help="weight of the bursting loss term 2 (default: 0.01)",
+    )
+    parser.add_argument(
+        "--beta1",
+        default=0.0,
+        type=float,
+        metavar="BE",
+        help="weight of the potential loss term 1 (default: 0.01)",
+    )
+    parser.add_argument(
+        "--beta2",
+        default=0.0,
+        type=float,
+        metavar="BE",
+        help="weight of the potential loss term 2 (default: 0.01)",
+    )
+    parser.add_argument(
+        "--l1",
+        default=0.0,
+        type=float,
+        metavar="L1",
+        help="weight of the l1 loss term (default: 0.0)",
+    )
+    parser.add_argument(
+        "--l2",
+        default=0.0,
+        type=float,
+        metavar="L2",
+        help="weight of the l2 loss term (default: 0.0)",
+    )
+    parser.add_argument(
+        "--inactivity_threshold",
+        default=0,
+        type=int,
+        metavar="IT",
+        help="number of batches to be inactive before weights are increased. 0 = no increase (default: 0)",
+    )
+    parser.add_argument(
+        "--delta_w",
+        default=0.01,
+        type=float,
+        metavar="DW",
+        help="Value to increase weights by when inactive (default: 0.01)",
     )
 
     if verbose:
@@ -268,7 +409,9 @@ def get_fc_layers(input_size, hidden_sizes, output_size, activations, bias=True)
     return fc_parameters
 
 
-def get_sfc_layers(input_size, hidden_sizes, output_size, activations, thresholds, decays, bias=False):
+def get_sfc_layers(
+    input_size, hidden_sizes, output_size, activations, thresholds, decays, bias=False
+):
     """Creates a list of dicts with parameters for fully connected layers with the specified dimensions.
 
     :param input_size: int, size of the flattend input.
@@ -295,10 +438,67 @@ def get_sfc_layers(input_size, hidden_sizes, output_size, activations, threshold
         )
         fc_parameters.append(
             dict(
-                name=f"activation_fc{i+1}", type=f"{activations[i]}", parameters=dict(
-                    threshold=thresholds[i], decay=decays[i],
-                ),
+                name=f"activation_fc{i+1}",
+                type=f"{activations[i]}",
+                parameters=dict(threshold=thresholds[i], decay=decays[i],),
             ),
+        )
+
+    return fc_parameters
+
+
+def get_sfclif_layers(
+    input_size,
+    hidden_sizes,
+    output_size,
+    thresholds,
+    threshold_widths,
+    delta_thresholds,
+    rhos,
+    epsilons,
+    decays,
+    inactivity_thresholds,
+    delta_ws,
+    adapt_thresh=True,
+    device="cpu",
+    bias=False,
+    reset=True,
+):
+    """Creates a list of dicts with parameters for fully connected layers with the specified dimensions.
+
+    :param input_size: int, size of the flattend input.
+    :param hidden_sizes: list, number of nodes in hidden layers.
+    :param output_size: int, number of output neurons.
+
+    :return fc_parameters: list containing dicts with layer parameters.
+    """
+
+    n_nodes = [input_size] + hidden_sizes + [output_size]
+
+    fc_parameters = []
+
+    for i in range(0, len(n_nodes) - 1):
+        fc_parameters.append(
+            dict(
+                name=f"sfc{i+1}",
+                type="sfc",
+                parameters=dict(
+                    in_features=n_nodes[i],
+                    out_features=n_nodes[i + 1],
+                    bias=bias,
+                    decay=decays[i],
+                    adapt_thresh=adapt_thresh,
+                    initial_threshold=thresholds[i],
+                    threshold_width=threshold_widths[i],
+                    delta_threshold=delta_thresholds[i],
+                    rho=rhos[i],
+                    epsilon=epsilons[i],
+                    inactivity_threshold=inactivity_thresholds[i],
+                    delta_w=delta_ws[i],
+                    device=device,
+                    reset=reset,
+                ),
+            )
         )
 
     return fc_parameters
@@ -441,6 +641,70 @@ def get_sconv2d_layers(
     return conv_parameters
 
 
+def get_sconv2dlif_layers(
+    input_channels,
+    channels,
+    kernel_sizes,
+    strides,
+    paddings,
+    thresholds,
+    threshold_widths,
+    delta_thresholds,
+    rhos,
+    epsilons,
+    decays,
+    inactivity_thresholds,
+    delta_ws,
+    adapt_thresh=True,
+    device="cpu",
+    reset=True,
+):
+    """Creates a list of dicts with parameters for convolutional layers with the specified dimensions.
+
+    :param input_channels: int, number of input channels.
+    :param channels: list, number of output channels per conv layer.
+    :param kernel_sizes: list, size of kernels to use per conv layer.
+    :param strides: list, stride to use per conv layer.
+
+    :return conv_parameters: list, containing dicts with layer parameters.
+    """
+
+    print(adapt_thresh)
+
+    n_channels = [input_channels] + channels
+
+    conv_parameters = []
+
+    for i in range(0, len(n_channels) - 1):
+        conv_parameters.append(
+            dict(
+                name=f"sconv2d{i+1}",
+                type="sconv2d",
+                parameters=dict(
+                    in_channels=n_channels[i],
+                    out_channels=n_channels[i + 1],
+                    kernel_size=kernel_sizes[i],
+                    stride=strides[i],
+                    padding=paddings[i],
+                    bias=False,
+                    decay=decays[i],
+                    adapt_thresh=adapt_thresh,
+                    initial_threshold=thresholds[i],
+                    threshold_width=threshold_widths[i],
+                    delta_threshold=delta_thresholds[i],
+                    rho=rhos[i],
+                    epsilon=epsilons[i],
+                    inactivity_threshold=inactivity_thresholds[i],
+                    delta_w=delta_ws[i],
+                    device=device,
+                    reset=reset,
+                ),
+            )
+        )
+
+    return conv_parameters
+
+
 def get_convtranspose2d_layers(
     input_channels,
     channels,
@@ -481,6 +745,7 @@ def get_convtranspose2d_layers(
                     kernel_size=kernel_sizes[i],
                     stride=strides[i],
                     padding=paddings[i],
+
                     bias=False,
                 ),
             )
@@ -577,6 +842,68 @@ def get_sconvtranspose2d_layers(
     return conv_parameters
 
 
+def get_sconvtranspose2dlif_layers(
+    input_channels,
+    channels,
+    kernel_sizes,
+    strides,
+    paddings,
+    thresholds,
+    threshold_widths,
+    delta_thresholds,
+    rhos,
+    epsilons,
+    decays,
+    inactivity_thresholds,
+    delta_ws,
+    adapt_thresh=True,
+    device="cpu",
+    reset=True,
+):
+    """Creates a list of dicts with parameters for convolutional layers with the specified dimensions.
+
+    :param input_channels: int, number of input channels.
+    :param channels: list, number of output channels per conv layer.
+    :param kernel_sizes: list, size of kernels to use per conv layer.
+    :param strides: list, stride to use per conv layer.
+
+    :return conv_parameters: list, containing dicts with layer parameters.
+    """
+
+    n_channels = [input_channels] + channels
+
+    conv_parameters = []
+
+    for i in range(0, len(n_channels) - 1):
+        conv_parameters.append(
+            dict(
+                name=f"sconvT2d{i+1}",
+                type="sconvt2d",
+                parameters=dict(
+                    in_channels=n_channels[i],
+                    out_channels=n_channels[i + 1],
+                    kernel_size=kernel_sizes[i],
+                    stride=strides[i],
+                    padding=paddings[i],
+                    bias=False,
+                    decay=decays[i],
+                    adapt_thresh=adapt_thresh,
+                    initial_threshold=thresholds[i],
+                    threshold_width=threshold_widths[i],
+                    delta_threshold=delta_thresholds[i],
+                    rho=rhos[i],
+                    epsilon=epsilons[i],
+                    inactivity_threshold=inactivity_thresholds[i],
+                    delta_w=delta_ws[i],
+                    device=device,
+                    reset=reset,
+                ),
+            )
+        )
+
+    return conv_parameters
+
+
 def build_layers(parameter_list):
     """Creates a ModuleDict network layers with the specified dimensions.
 
@@ -606,10 +933,16 @@ def build_layers(parameter_list):
                 layer = Pooling_sNeuron(**params)
             elif type_ == "fc":
                 layer = nn.Linear(**params)
+            elif type_ == "sfc":
+                layer = LinearLIF(**params)
             elif type_ == "conv2d":
                 layer = nn.Conv2d(**params)
+            elif type_ == "sconv2d":
+                layer = Conv2dLIF(**params)
             elif type_ == "convt2d":
                 layer = nn.ConvTranspose2d(**params)
+            elif type_ == "sconvt2d":
+                layer = ConvTranspose2dLIF(**params)
             elif type_ == "avgpool2d":
                 layer = nn.AvgPool2d(**params)
             elif type_ == "maxpool2d":
@@ -639,7 +972,9 @@ def set_seed(seed, verbose=True):
     torch.backends.cudnn.benchmark = False
 
 
-def get_datasets(dataset, batch_size, cuda, root="../data", verbose=True):
+def get_datasets(
+    dataset, batch_size, cuda, test_batch_size=None, root="../data", verbose=True
+):
     """Load datasets from disk.
 
     :arg
@@ -659,6 +994,9 @@ def get_datasets(dataset, batch_size, cuda, root="../data", verbose=True):
 
     if verbose:
         print(f"Loading {dataset} dataset...")
+    if test_batch_size is None:
+        test_batch_size = batch_size
+
     if dataset == "fashion":
         Dataset = datasets.FashionMNIST
         dataset_path = Path.joinpath(Path(root), "fashion-mnist")
@@ -686,8 +1024,8 @@ def get_datasets(dataset, batch_size, cuda, root="../data", verbose=True):
         Dataset(
             dataset_path, train=False, download=False, transform=transforms.ToTensor()
         ),
-        batch_size=batch_size,
-        shuffle=True,
+        batch_size=test_batch_size,
+        shuffle=False,
         **kwargs,
     )
 
@@ -728,33 +1066,6 @@ def get_backend(args):
         print(f"Running on {device}\n")
 
     return device
-
-
-def get_loss_function(loss, verbose=True, spiking=False):
-    """Sets the requested loss function if available
-
-    :param loss: str, name of the loss function to use during training.
-    :param verbose: bool, flag to print statements.
-
-    :return loss_function: func, loss function to use during training.
-    """
-
-    if loss.lower() == "crossentropy":
-        loss_function = torch.nn.CrossEntropyLoss()
-    elif loss.lower() == "mse":
-        if spiking:
-            loss_function = torch.nn.MSELoss(size_average=False)
-        else:
-            loss_function = torch.nn.MSELoss()
-    else:
-        raise NotImplementedError(
-            f"The loss function {loss} is not implemented.\n"
-            f"Valid options are: 'crossentropy', 'mse'."
-        )
-    if verbose:
-        print(f"Initialized loss function:\n{loss_function}\n")
-
-    return loss_function
 
 
 def get_optimizer(optim, model, lr, wd, verbose=True):

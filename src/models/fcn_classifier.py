@@ -31,6 +31,7 @@ class FullyConnectedClassifier(BaseModel):
             learning_rate=learning_rate,
             weight_decay=weight_decay,
             device=device,
+            loss=loss,
             verbose=verbose,
             log_func=log_func,
         )
@@ -61,9 +62,6 @@ class FullyConnectedClassifier(BaseModel):
         self.optimizer = u.get_optimizer(
             optimizer, self.model, self.lr, self.wd, verbose
         )
-
-        # initialize loss function
-        self.loss_function = u.get_loss_function(loss, verbose)
 
     def summary(self):
         """Prints a model summary about itself."""

@@ -2,7 +2,10 @@ import torch
 import torch.nn as nn
 from models.base_model import SpikingBaseModel
 from models.spiking_layers import LIF_sNeuron, Pooling_sNeuron, LF_Unit
+from models.input_encoders import get_input_encoder
+from models.output_decoders import get_output_decoder
 import utils as u
+import losses
 
 import math
 import torch.nn.functional as F
@@ -16,7 +19,7 @@ class SpikingConvolutionalAutoencoder(SpikingBaseModel):
         input_channels,
         conv2d_channels,
         hidden_sizes,
-        dataset,
+        #dataset,
         loss,
         optimizer,
         learning_rate,
@@ -34,6 +37,9 @@ class SpikingConvolutionalAutoencoder(SpikingBaseModel):
         threshold=1,
         decay=0.99,
         pool_threshold=0.75,
+        encoder_params=dict(encoder="first"),
+        decoder_params=dict(decoder="max"),
+        grad_clip=0.0,
         verbose=True,
         log_func=print,
     ):
@@ -41,13 +47,15 @@ class SpikingConvolutionalAutoencoder(SpikingBaseModel):
             input_width=input_width,
             input_height=input_height,
             input_channels=input_channels,
-            dataset=dataset,
+            #dataset=dataset,
             learning_rate=learning_rate,
             weight_decay=weight_decay,
             steps=steps,
             threshold=threshold,
             decay=decay,
             device=device,
+            loss=loss,
+            grad_clip=grad_clip,
             verbose=verbose,
             log_func=log_func,
         )
@@ -81,6 +89,8 @@ class SpikingConvolutionalAutoencoder(SpikingBaseModel):
             threshold=threshold,
             decay=decay,
             pool_threshold=pool_threshold,
+            encoder_params=encoder_params,
+            decoder_params=decoder_params,
             device=device,
             steps=steps,
         )
@@ -96,8 +106,13 @@ class SpikingConvolutionalAutoencoder(SpikingBaseModel):
             optimizer, self.model, self.lr, self.wd, verbose
         )
 
+        # TODO: implement a better solution an delete line as done by base model
+
         # initialize loss function
-        self.loss_function = u.get_loss_function(loss, verbose, spiking=True)
+        self.loss_function = losses.get_loss_function(loss, verbose, spiking=True)
+
+        self.input_layer = self.model.conv_encoder_layers["conv2d1"]
+        self.output_layer = self.model.conv_decoder_layers[f"convT2d{len(self.conv2d_channels)}"]
 
     def summary(self):
         """Prints a model summary about itself."""
@@ -139,6 +154,8 @@ class SCNNAutoencoderModel(nn.Module):
         threshold=1,
         decay=0.99,
         pool_threshold=0.75,
+        encoder_params={"encoder": "first"},
+        decoder_params={"decoder": "max"},
         device="cuda",
     ):
         super(SCNNAutoencoderModel, self).__init__()
@@ -245,6 +262,14 @@ class SCNNAutoencoderModel(nn.Module):
         sconv_decoder_parameters = u.get_sconvtranspose2d_layers(**sconv_decoder_args)
         self.conv_decoder_layers = u.build_layers(sconv_decoder_parameters)
 
+        # initialize input encoder
+        self.input_encoder = get_input_encoder(**encoder_params)
+
+        # initialize output decoder
+        self.output_decoder = get_output_decoder(**decoder_params)
+
+
+
     def conv_encode(self, x):
         """Passes data through convolutional layers.
 
@@ -281,7 +306,6 @@ class SCNNAutoencoderModel(nn.Module):
         cum_potential_history = [
             [] for m in modules if type(m) in [LIF_sNeuron, Pooling_sNeuron]
         ]
-        input_history = []
         membrane_potentials = []
         leaky_cum_membrane_potentials = []
         total_outs = []
@@ -371,16 +395,9 @@ class SCNNAutoencoderModel(nn.Module):
                 # print()
 
         for t in range(self.steps):
-            # print(t)
 
-            rand_num = torch.rand(x.size(0), x.size(1), x.size(2), x.size(3)).to(
-                self.device
-            )
-            Poisson_d_input = ((torch.abs(x) / 2) > rand_num).type(
-                torch.cuda.FloatTensor
-            )
-            out = torch.mul(Poisson_d_input, torch.sign(x))
-            input_history.append(out.detach())
+            out = self.input_encoder.encode(x, t)
+
             i, j = 0, 0
             for name, layer in self.conv_encoder_layers.items():
                 # print(f"layer {name}: {layer}\n"
@@ -390,7 +407,7 @@ class SCNNAutoencoderModel(nn.Module):
                     # print("membrane potentials size:", membrane_potentials[i].size())
                     out, membrane_potentials[i] = layer(membrane_potentials[i])
                     LF_outs[j], total_outs[j], out = LF_Unit(
-                        layer.decay, LF_outs[j], total_outs[j], out, out_temps[j], t
+                        layer.decay, LF_outs[j], total_outs[j], out, out_temps[j]
                     )
                     i += 1
                     j += 1
@@ -427,7 +444,7 @@ class SCNNAutoencoderModel(nn.Module):
                     # print("membrane potentials size:", membrane_potentials[i].size())
                     out, membrane_potentials[i] = layer(membrane_potentials[i])
                     LF_outs[j], total_outs[j], out = LF_Unit(
-                        layer.decay, LF_outs[j], total_outs[j], out, out_temps[j], t
+                        layer.decay, LF_outs[j], total_outs[j], out, out_temps[j]
                     )
                     i += 1
                     j += 1
@@ -453,7 +470,7 @@ class SCNNAutoencoderModel(nn.Module):
                     # print("membrane potentials size:", membrane_potentials[i].size())
                     out, membrane_potentials[i] = layer(membrane_potentials[i])
                     LF_outs[j], total_outs[j], out = LF_Unit(
-                        layer.decay, LF_outs[j], total_outs[j], out, out_temps[j], t
+                        layer.decay, LF_outs[j], total_outs[j], out, out_temps[j]
                     )
                     i += 1
                     j += 1
@@ -481,7 +498,7 @@ class SCNNAutoencoderModel(nn.Module):
                     # print("membrane potentials size:", membrane_potentials[i].size())
                     out, membrane_potentials[i] = layer(membrane_potentials[i])
                     LF_outs[j], total_outs[j], out = LF_Unit(
-                        layer.decay, LF_outs[j], total_outs[j], out, out_temps[j], t
+                        layer.decay, LF_outs[j], total_outs[j], out, out_temps[j]
                     )
                     i += 1
                     j += 1
@@ -498,20 +515,21 @@ class SCNNAutoencoderModel(nn.Module):
                         + leaky_cum_membrane_potentials[i]
                         - leaky_cum_membrane_potentials[i].detach()
                     )
-                    cum_potential_history[i].append(leaky_cum_membrane_potentials[i].detach())
+                    cum_potential_history[i].append(leaky_cum_membrane_potentials[i])
 
 
-        output = leaky_cum_membrane_potentials[-1] / steps
-        #output = F.sigmoid(output)
+        output = self.output_decoder.decode(cum_potential_history[-1])
 
         result = dict(
             output=output,
             total_outs=total_outs,
             lf_outs=LF_outs,
             out_temps=out_temps,
-            input_history=input_history,
+            input_history=self.input_encoder.input_history,
             potential_history=potential_history,
             cum_potential_history=cum_potential_history,
         )
+
+        self.input_encoder.reset()
 
         return result
