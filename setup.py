@@ -32,8 +32,7 @@ if __name__ == "__main__":
         description="Download datasets for VSC experiments"
     )
     parser.add_argument(
-        "datasets",
-        metavar="-d",
+        "--datasets",
         type=str,
         nargs="+",
         choices=["mnist", "fashion"],
