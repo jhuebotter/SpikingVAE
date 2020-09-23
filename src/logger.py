@@ -32,11 +32,9 @@ class WandBLogger(object):
         self.run = wandb.init(
             name=name,
             config=args,
-            #id=id,
             resume="allow",
             project="spiking-vae",
             dir="../results",
-            save_code=True,
         )
 
         # save models in run dir
