@@ -84,14 +84,21 @@ def get_argparser(description="", verbose=True):
     )
     parser.add_argument(
         "--batch_size",
-        default=20,
+        default=40,
+        type=int,
+        metavar="BS",
+        help="mini-batch size (default: 64)",
+    )
+    parser.add_argument(
+        "--test_batch_size",
+        default=40,
         type=int,
         metavar="BS",
         help="mini-batch size (default: 64)",
     )
     parser.add_argument(
         "--epoch_batches",
-        default=0,
+        default=100,
         type=int,
         metavar="EB",
         help="limits number of batches per epoch; 0 = no limit (default: 0)",
@@ -124,7 +131,7 @@ def get_argparser(description="", verbose=True):
     parser.add_argument(
         "--decay",
         type=float,
-        default=0.99,
+        default=0.95,
         help="temporal decay variable for LIF neurons (default: 0.99)",
     )
     parser.add_argument(
@@ -177,7 +184,7 @@ def get_argparser(description="", verbose=True):
     parser.add_argument(
         "--lr",
         "--learning_rate",
-        default=0.001,
+        default=0.0005,
         type=float,
         metavar="LR",
         help="initial learning rate (default: 1e-3)",
@@ -248,10 +255,10 @@ def get_argparser(description="", verbose=True):
     )
     parser.add_argument(
         "--encoder",
-        default="potential",
+        default="spike",
         type=str,
         metavar="EN",
-        help="encoding method to use from 'first', 'potential', or 'spike' (default: 'first')",
+        help="encoding method to use from 'first', 'potential', or 'spike' (default: 'spike')",
     )
     parser.add_argument(
         "--decoder",
@@ -262,7 +269,7 @@ def get_argparser(description="", verbose=True):
     )
     parser.add_argument(
         "--grad_clip",
-        default=0.0,
+        default=50.0,
         type=float,
         metavar="GC",
         help="Value to clip gradients at each step, 0 = no clip (default: 0.0)",
@@ -273,6 +280,13 @@ def get_argparser(description="", verbose=True):
         default=False,
         #action="store_false",
         help="uses extra gradient calculation from paper XY (default: False)",
+    )
+    parser.add_argument(
+        "--reset",
+        type=bool,
+        default=True,
+        # action="store_false",
+        help="changes the membrane potential reset behaviour (default: True)",
     )
     parser.add_argument(
         "--adapt_threshold",
