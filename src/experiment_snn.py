@@ -1,47 +1,13 @@
 from models.scnn_autoencoder_new import SpikingConvolutionalAutoencoderNew
 import utils as u
 from logger import WandBLogger
-import torch
 import losses
-
-torch.autograd.set_detect_anomaly(True)
 
 # set important parameters
 parser = u.get_argparser()
 args = parser.parse_args()
-#args.dataset = "mnist"
-#args.batch_size = 40
-#args.test_batch_size = 40
-#args.hidden_sizes = [100]
 args.conv_channels = [int(item) for item in args.conv_channels.split(',')]
-#args.epoch_batches = 100
-#args.epochs = 10
-#args.grad_clip = 50
-
-# loss
 args.loss = "custom"
-#args.wd = 0.0
-#args.beta1 = 0.01
-#args.beta2 = 0.01
-#args.lambd1 = 0.01
-#args.lambd2 = 0.01
-#args.l1 = 0.0
-#args.l2 = 0.0
-
-#args.delta_w = 1.0
-#args.inactivity_threshold = 1
-#args.lr = 0.0005
-#args.steps = 100
-#args.decay = 0.95
-#args.noise = 0.0
-#args.adapt_threshold = False
-#args.seed = 3
-#args.reset = True
-#args.encoder = "spike"
-#args.eval_first = False
-#args.extra_grad = False
-#args.scale = 0.4
-#args.decoder = "max"
 args.model = "scnn_autoencoder_new"
 args.metrics = []
 args.samplers = ["plot_filters",
@@ -112,12 +78,7 @@ net = SpikingConvolutionalAutoencoderNew(
     device=device,
     kernel_size=args.kernel_size,
     stride=1,
-    padding=0, #2 if args.kernel_size >= 5 else 1,
-    #pooling_kernel=1,
-    #pooling_stride=1,
-    #activation="lif",
-    #activation_out="lif",
-    #pooling="avg",
+    padding=0,
     steps=args.steps,
     threshold=1,
     decay=args.decay,
@@ -126,7 +87,6 @@ net = SpikingConvolutionalAutoencoderNew(
     delta_threshold=args.delta_threshold,
     rho=args.rho,
     epsilon=args.epsilon,
-    #pool_threshold=0.75,
     inactivity_threshold=args.inactivity_threshold,
     delta_w=args.delta_w,
     encoder_params=encoder_params,
