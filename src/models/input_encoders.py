@@ -99,6 +99,27 @@ class PotentialEncoder(BaseEncoder):
         return out
 
 
+class NoisyEncoder(BaseEncoder):
+    def __init__(self, noise=0.0, std=1.0, scaling=1.0, **kwargs):
+
+        self.noise = noise
+        self.std = std
+        self.scaling = scaling
+        super().__init__(**kwargs)
+
+    def encode(self, x):
+
+        if self.noise:
+            noise_tensor = torch.normal(0, self.std, size=x.size()).to(self.device)
+            x = x * (1 - self.noise) + noise_tensor * self.noise
+
+        out = x * self.scaling
+
+        self.input_history.append(out.detach())
+
+        return out
+
+
 def get_input_encoder(**kwargs):
 
     name = kwargs.pop("encoder").lower()
@@ -112,8 +133,11 @@ def get_input_encoder(**kwargs):
     elif name == "first":
         return FirstSpikeEncoder(**kwargs)
 
+    elif name == "noisy":
+        return NoisyEncoder(**kwargs)
+
     else:
         raise NotImplementedError(
             f"The input encoder {name} is not implemented.\n"
-            f"Valid options are: 'potential', 'spike'."
+            f"Valid options are: 'potential', 'spike', 'first', and 'noisy'."
         )

@@ -98,7 +98,7 @@ def get_argparser(description="", verbose=True):
     )
     parser.add_argument(
         "--epoch_batches",
-        default=100,
+        default=0,
         type=int,
         metavar="EB",
         help="limits number of batches per epoch; 0 = no limit (default: 0)",

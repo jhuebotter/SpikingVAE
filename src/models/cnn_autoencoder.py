@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from models.base_model import BaseModel
+from models.input_encoders import get_input_encoder
 import utils as u
 
 
@@ -12,7 +13,6 @@ class ConvolutionalAutoencoder(BaseModel):
         input_channels,
         conv2d_channels,
         hidden_sizes,
-        dataset,
         loss,
         optimizer,
         learning_rate,
@@ -26,6 +26,7 @@ class ConvolutionalAutoencoder(BaseModel):
         activation="relu",
         activation_out="logsoftmax",
         pooling="avg",
+        encoder_params={"encoder": "noisy"},
         verbose=True,
         log_func=print,
     ):
@@ -33,7 +34,6 @@ class ConvolutionalAutoencoder(BaseModel):
             input_width=input_width,
             input_height=input_height,
             input_channels=input_channels,
-            dataset=dataset,
             learning_rate=learning_rate,
             weight_decay=weight_decay,
             device=device,
@@ -67,6 +67,7 @@ class ConvolutionalAutoencoder(BaseModel):
             pooling_strides=self.pooling_strides,
             activation=activation,
             activation_out=activation_out,
+            encoder_params=encoder_params,
             pooling=pooling,
         )
         self.init_weights()
@@ -114,6 +115,7 @@ class CNNAutoencoderModel(nn.Module):
         paddings,
         pooling_kernels,
         pooling_strides,
+        encoder_params={"encoder": "noisy"},
         activation="relu",
         activation_out="logsoftmax",
         pooling="avg",
@@ -210,6 +212,9 @@ class CNNAutoencoderModel(nn.Module):
         conv_decoder_parameters = u.get_convtranspose2d_layers(**conv_decoder_args)
         self.conv_decoder_layers = u.build_layers(conv_decoder_parameters)
 
+        # initialize input encoder
+        self.input_encoder = get_input_encoder(**encoder_params)
+
     def conv_encode(self, x):
         """Passes data through convolutional layers.
 
@@ -270,9 +275,18 @@ class CNNAutoencoderModel(nn.Module):
         :return Tensor with output data.
         """
 
+        x = self.input_encoder.encode(x)
         z = self.encode(x)
         y = self.decode(z)
 
-        result = dict(output=y, latent=z)
+        #print(z.sum())
+        result = dict(
+            output=y,
+            latent=z,
+            input_history=self.input_encoder.input_history,)
+
+        self.input_encoder.reset()
 
         return result
+
+

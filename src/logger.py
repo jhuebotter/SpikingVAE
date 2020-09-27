@@ -26,7 +26,7 @@ class TensorboardLogger(object):
 class WandBLogger(object):
     """Logger class for graphical summary with Weights and Biases"""
 
-    def __init__(self, args, name=None, id=None):
+    def __init__(self, args, name=None, dir="../results", id=None):
         #if id is None:
         #id = wandb.util.generate_id()
         self.run = wandb.init(
@@ -34,7 +34,7 @@ class WandBLogger(object):
             config=args,
             resume="allow",
             project="spiking-vae",
-            dir="../results",
+            dir=dir,
         )
 
         # save models in run dir

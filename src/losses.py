@@ -37,10 +37,21 @@ class CustomMSELoss(_Loss):
 
     def __init__(self, size_average=None, reduce=None, reduction: str = "mean") -> None:
         super(CustomMSELoss, self).__init__(size_average, reduce, reduction)
+        self.loss_labels = [
+            "loss",
+            "reconstruction loss",
+        ]
 
     def forward(self, **result) -> Tensor:
 
-        return F.mse_loss(result["output"], result["target"], reduction=self.reduction)
+        loss = F.mse_loss(result["output"], result["target"], reduction=self.reduction)
+
+        losses = {
+            "loss": loss,
+            "reconstruction loss": loss,
+        }
+
+        return losses
 
 
 class CustomCrossEntropyLoss(_WeightedLoss):

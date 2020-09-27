@@ -1,10 +1,12 @@
 import numpy as np
 import torch
+import io
+from PIL import Image
 from torchvision.utils import make_grid
 import wandb
 import matplotlib
 import matplotlib.pyplot as plt
-matplotlib.use('Agg')
+#matplotlib.use('Agg')
 import pandas as pd
 import seaborn as sns
 
@@ -125,56 +127,72 @@ def plot_spike_hist(spikes, layers, max_samples, nrow=8, t=100):
         batch_size = layer_spikes.shape[0]
         n = layer_spikes.shape[1]
 
-        img, ax = plt.subplots(batch_size // nrow, nrow, sharey=True, sharex=True)
+        ncols = min(batch_size, 8)
+        nrows = batch_size // ncols + 1
+        if batch_size % ncols == 0:
+            nrows -= 1
+
+        img = plt.subplots(squeeze=False, sharey=True, sharex=True, figsize=(ncols, nrows*0.6))
 
         for i in range(batch_size):
             batch_spikes = layer_spikes[i, :] / t
-            x = i % nrow
-            y = i // nrow
-            ax[y, x].hist(batch_spikes, range=(0.0, 1.0), density=True, bins=20)
-            ax[y, x].tick_params(top=False, bottom=False, left=False, right=False,
+            row = i // ncols
+            col = i % ncols
+            ax = plt.subplot2grid((nrows, ncols), (row, col))
+            ax.hist(batch_spikes, range=(0.0, 1.0), density=True, bins=20)
+            ax.tick_params(top=False, bottom=False, left=False, right=False,
                            labelleft=False, labelbottom=False)
 
         plt.tight_layout()
+        buf = io.BytesIO()
+        plt.savefig(buf, format="png")
+        buf.seek(0)
+        im = Image.open(buf)
+
         sample.update(
             {
                 f"layer {idx} example hist":
-                    wandb.Image(img, caption=f"layer {idx} example hist")
+                    wandb.Image(im, caption=f"layer {idx} example hist")
             }
         )
 
-        #plt.show()
+        buf.close()
         plt.close()
 
-        img, ax = plt.subplots(n // nrow, nrow, sharey=True, sharex=True)
+        ncols = min(n, 8)
+        nrows = n // ncols + 1
+        if n % ncols == 0:
+            nrows -= 1
+
+        img = plt.subplots(squeeze=False, sharey=True, sharex=True, figsize=(ncols, nrows*0.6))
 
         for i in range(n):
             neuron_spikes = layer_spikes[:, i] / t
-            x = i % nrow
-            y = i // nrow
-            try:
-                ax[y, x].hist(neuron_spikes, range=(0.0, 1.0), density=True, bins=20)
-                ax[y, x].tick_params(top=False, bottom=False, left=False, right=False,
-                                     labelleft=False, labelbottom=False)
-            except:
-                break
+            row = i // ncols
+            col = i % ncols
+            ax = plt.subplot2grid((nrows, ncols), (row, col))
+            ax.hist(neuron_spikes, range=(0.0, 1.0), density=True, bins=20)
+            ax.tick_params(top=False, bottom=False, left=False, right=False,
+                              labelleft=False, labelbottom=False)
 
         plt.tight_layout()
+        buf = io.BytesIO()
+        plt.savefig(buf, format="png")
+        buf.seek(0)
+        im = Image.open(buf)
+        im.show()
+
         sample.update(
             {
                 f"layer {idx} neuron hist":
-                    wandb.Image(img, caption=f"layer {idx} neuron hist")
+                    wandb.Image(im, caption=f"layer {idx} neuron hist")
             }
         )
 
-        #plt.show()
+        buf.close()
         plt.close()
 
     return sample
-
-
-
-
 
 
 class FilterSampler(BaseSampler):
