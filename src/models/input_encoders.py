@@ -24,14 +24,23 @@ class PoissonSpikeEncoder(BaseEncoder):
         self.noise = noise
         self.std = std
         self.scale = scale
+        self.n = None
+
+    def reset(self):
+
+        self.input_history = []
+        self.n = None
 
     def encode(self, x, t):
 
         rand_num = torch.rand(size=x.size()).to(self.device)
 
+        if self.noise and self.n == None:
+            #self.n = torch.normal(0, self.std, size=x.size()).to(self.device)
+            self.n = torch.rand(size=x.size()).to(self.device)
+
         if self.noise:
-            noise_tensor = torch.normal(0, self.std, size=x.size()).to(self.device)
-            x = x * (1 - self.noise) + noise_tensor * self.noise
+            x = x * (1 - self.noise) + self.n * self.noise
 
         out = ((torch.abs(x * self.scale)) > rand_num).type(
             torch.FloatTensor if self.device == "cpu" else torch.cuda.FloatTensor
@@ -110,7 +119,8 @@ class NoisyEncoder(BaseEncoder):
     def encode(self, x):
 
         if self.noise:
-            noise_tensor = torch.normal(0, self.std, size=x.size()).to(self.device)
+            #noise_tensor = torch.normal(0, self.std, size=x.size()).to(self.device)
+            noise_tensor = torch.rand(size=x.size()).to(self.device)
             x = x * (1 - self.noise) + noise_tensor * self.noise
 
         out = x * self.scaling

@@ -180,7 +180,7 @@ def plot_spike_hist(spikes, layers, max_samples, nrow=8, t=100):
         plt.savefig(buf, format="png")
         buf.seek(0)
         im = Image.open(buf)
-        im.show()
+        #im.show()
 
         sample.update(
             {
