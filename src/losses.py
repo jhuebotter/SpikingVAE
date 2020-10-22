@@ -288,7 +288,7 @@ class CustomSNNLoss(_Loss):
             "L1 weight loss": l1_weights,
             "L2 weight loss": l2_weights,
             "example activity loss 2": l2_example,
-            "example neuron loss 2": l2_neuron,
+            "neuron activity loss 2": l2_neuron,
             "mean pixelwise error": pixelwise_error,
             "own mse": own_mse,
         }

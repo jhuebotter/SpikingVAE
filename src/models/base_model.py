@@ -240,7 +240,7 @@ class BaseModel:
                     if self.task == "reconstruction":
                         target_batch = data_batch
                     result = self.step(data_batch, target_batch, train=False)
-                    loss = result["loss"]
+                    #loss = result["loss"]
                     result["labels"] = label_batch
                     if self.input_layer is not None:
                         result["input weights"] = self.input_layer.weight.data.cpu()
@@ -253,7 +253,9 @@ class BaseModel:
                     # calculate the metrics
                     for metric, metric_fn in metrics.items():
                         summary[metric].update(metric_fn(**result))
+                    #print(result.keys())
                     for l in self.loss_function.loss_labels:
+                        #print(l)
                         summary[l].update(result[l])
 
                     if sample_freq and batch_idx % sample_freq == 0:
