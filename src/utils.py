@@ -366,6 +366,20 @@ def get_argparser(description="", verbose=True):
         help="weight of the l2 loss term (default: 0.0)",
     )
     parser.add_argument(
+        "--example2",
+        default=0.0,
+        type=float,
+        metavar="E2",
+        help="weight of the squared example activity loss term (default: 0.0)",
+    )
+    parser.add_argument(
+        "--neuron2",
+        default=0.0,
+        type=float,
+        metavar="N2",
+        help="weight of the squared neuron activity loss term (default: 0.0)",
+    )
+    parser.add_argument(
         "--inactivity_threshold",
         default=0,
         type=int,
@@ -378,6 +392,13 @@ def get_argparser(description="", verbose=True):
         type=float,
         metavar="DW",
         help="Value to increase weights by when inactive (default: 0.01)",
+    )
+    parser.add_argument(
+        "--experiment",
+        default="test",
+        type=str,
+        metavar="EX",
+        help="Id of experiment a certain run belongs to (default: test)",
     )
 
     if verbose:
@@ -414,11 +435,12 @@ def get_fc_layers(input_size, hidden_sizes, output_size, activations, bias=True)
                 ),
             )
         )
-        fc_parameters.append(
-            dict(
-                name=f"activation_fc{i+1}", type=f"{activations[i]}", parameters=dict(),
-            ),
-        )
+        if activations[i] is not None:
+            fc_parameters.append(
+                dict(
+                    name=f"activation_fc{i+1}", type=f"{activations[i]}", parameters=dict(),
+                ),
+            )
 
     return fc_parameters
 
@@ -1131,6 +1153,9 @@ class RunningAverage:
 
     def __call__(self):
         return self.total / float(self.steps)
+
+
+
 
 
 if __name__ == "__main__":

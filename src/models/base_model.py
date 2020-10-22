@@ -52,6 +52,7 @@ class BaseModel:
         self.wd = weight_decay
         self.device = device
         self.log_func = log_func
+        self.training_step = 0
 
         # To be implemented by subclasses
         self.model = None
@@ -104,7 +105,7 @@ class BaseModel:
 
         raise NotImplementedError
 
-    def update_(self):
+    def update_(self, **kwargs):
         """Update some internal variables during training such as a scheduled or conditional learning rate"""
 
         pass
@@ -131,6 +132,8 @@ class BaseModel:
         if train:
             losses["loss"].backward()
             self.optimizer.step()
+            self.training_step += 1
+            self.update_(step=self.training_step)
 
         result = dict(
             input=data_batch,
@@ -179,7 +182,7 @@ class BaseModel:
                 for metric, metric_fn in metrics.items():
                     summary[metric].update(metric_fn(**result))
                 for l in self.loss_function.loss_labels:
-                    summary[l].update(result[l] / len(target_batch))
+                    summary[l].update(result[l])
 
                 #t.set_postfix(loss="{:05.4f}".format(loss_avg()))
                 t.set_postfix(loss="{:05.4f}".format(summary["loss"]()))
@@ -251,7 +254,7 @@ class BaseModel:
                     for metric, metric_fn in metrics.items():
                         summary[metric].update(metric_fn(**result))
                     for l in self.loss_function.loss_labels:
-                        summary[l].update(result[l] / len(target_batch))
+                        summary[l].update(result[l])
 
                     if sample_freq and batch_idx % sample_freq == 0:
                         for sampler, sampler_fn in samplers.items():
@@ -419,6 +422,7 @@ class BaseModel:
             for key, value in val_results.items():
                 summary[f"validation {key}"] = value
             if logger is not None:
+                logger.save_summary(summary, epoch=start_epoch - 1)
                 logger.log(summary, step=start_epoch - 1)
                 for batch, sample in samples.items():
                     for key, value in sample.items():
@@ -443,6 +447,7 @@ class BaseModel:
                 summary[f"validation {key}"] = value
             training_summary[epoch] = summary
             if logger is not None:
+                logger.save_summary(summary, epoch=epoch)
                 logger.log(summary, step=epoch)
                 for batch, sample in samples.items():
                     for key, value in sample.items():
@@ -452,7 +457,7 @@ class BaseModel:
             if self.verbose:
                 self.log_func(f"Summary epoch {epoch}:")
                 for key, value in summary.items():
-                    self.log_func(f"{key:30s} {value:10.4f}")
+                    self.log_func(f"{key:50s} {value:10.4f}")
 
             # Check if the model is the best model
             key_score = summary[key_metric]
@@ -484,8 +489,6 @@ class BaseModel:
                 verbose=self.verbose,
             )
 
-            # Optional parameter update
-            self.update_()
 
 
 
@@ -611,11 +614,8 @@ class SpikingBaseModel(BaseModel):
         else:
             target = target_batch
 
-        # TODO: Replace loss functions by custom methods
         out_batch["target"] = target
         out_batch["weights"] = [p for p in self.model.parameters()]
-
-        #out_batch["weights"] = self.model.parameters()
 
         losses = self.loss_function(**out_batch)
         result = dict(

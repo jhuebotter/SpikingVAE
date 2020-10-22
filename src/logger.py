@@ -1,6 +1,8 @@
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
+import pandas as pd
 import wandb
+from pathlib import Path
 
 
 class TensorboardLogger(object):
@@ -26,9 +28,14 @@ class TensorboardLogger(object):
 class WandBLogger(object):
     """Logger class for graphical summary with Weights and Biases"""
 
-    def __init__(self, args, name=None, dir="../results", id=None):
+    def __init__(self, args, name=None, dir="../results", id=None, upload_models=False):
         #if id is None:
         #id = wandb.util.generate_id()
+        if args.experiment is not "":
+            dir = Path(dir, args.experiment)
+            dir.mkdir(exist_ok=True)
+
+        self.results_dir = dir
         self.run = wandb.init(
             name=name,
             config=args,
@@ -37,8 +44,12 @@ class WandBLogger(object):
             dir=dir,
         )
 
+        self.result = pd.DataFrame([])
+
         # save models in run dir
-        #wandb.save("*.pth")
+        if upload_models:
+            wandb.save("*.pth")
+
 
     def watch(self, model):
         # tell logger to watch the model
@@ -51,8 +62,41 @@ class WandBLogger(object):
             assert isinstance(step, int)
             self.run.log(content, step=step)
 
+    def save_summary(self, summary, epoch=0):
+        
+        result = dict(epoch=epoch, name=self.run.name, run_id=self.run.id)
+        for k, v in self.run.config.items():
+            if type(v) == list:
+                s = ''
+                for i in v:
+                    s += f'{i}, '
+                result[k] = s
+            elif type(v) in (str, int, float, bool):
+                result[k] = v
+        for k, v in summary.items():
+            result[k] = v
+
+        df = pd.DataFrame([result])
+        self.result = pd.concat([self.result, df])
+        self.save_result()
 
 
+    def save_result(self, path='all_results.csv'):
+
+        if self.result.empty:
+            print("nothing to save")
+        else:
+            path = Path(self.results_dir, path)
+            print("saving results at", path)
+            if path.exists():
+                print("loading existing results")
+                df = pd.read_csv(path)
+            else:
+                print("Making new results frame")
+                df = pd.DataFrame([])
+            df = pd.concat([df, self.result], ignore_index=True)
+            df.to_csv(path, index=False)
+            self.result = pd.DataFrame([])
 
 
 if __name__ == "__main__":

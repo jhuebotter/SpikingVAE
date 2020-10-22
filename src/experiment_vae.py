@@ -1,4 +1,4 @@
-from models.cnn_autoencoder import ConvolutionalAutoencoder
+from models.cnn_vae import ConvolutionalVAE
 import utils as u
 from logger import WandBLogger
 import losses
@@ -7,15 +7,15 @@ import losses
 parser = u.get_argparser()
 args = parser.parse_args()
 args.conv_channels = [int(item) for item in args.conv_channels.split(',')]
-args.loss = "mse"
+args.loss = "beta"
 args.encoder = "noisy"
-#args.experiment = "cnn_lr_grid"
-#args.scale = 1.0
+args.scale = 1.0
 #args.wd = 0.01
+#args.beta1 = 1.0 #1
 #args.epochs = 1
-#args.noise = 0.0
-args.model = "cnn_autoencoder"
-args.metrics = ["correlation", "meanactivity", "pctactive", "pctactiveperexample"]
+#args.noise = 0.8
+args.model = "cnn_vae"
+args.metrics = ["correlation", "pctactive", "meanactivity", "pctactiveperexample"]
 args.samplers = ["plot_filters",
                  "plot_activity_matrix",
                  "plot_reconstruction",
@@ -66,7 +66,7 @@ loss_fn = losses.get_loss_function(loss=args.loss,
                                                )
                                    )
 
-net = ConvolutionalAutoencoder(
+net = ConvolutionalVAE(
     input_width=width,
     input_height=height,
     input_channels=channels,
@@ -96,7 +96,7 @@ net.train_and_evaluate(
     train_loader=train_loader,
     val_loader=val_loader,
     epochs=args.epochs,
-    model_name="cnn_experiment",
+    model_name="vae_experiment",
     metrics=args.metrics,
     key_metric="validation loss",
     goal=args.goal,

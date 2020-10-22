@@ -95,30 +95,123 @@ class BaseSampler:
     def __call__(self, **results):
         return self.sample(**results)
 
-
 class SpikeHistSampler(BaseSampler):
-    def __init__(self, nrow=8, layers=[], **kwargs):
+    def __init__(self, ncol=8, layers=[], **kwargs):
 
         super().__init__(**kwargs)
-        self.nrow = nrow
+        self.ncol = ncol
         self.layers = layers
 
     def sample(self, **result):
 
         sample = dict()
 
-        spikes = result["total_outs"]
-        t = len(result["out_temps"][0])
-        sample.update(
-            plot_spike_hist(spikes, layers=self.layers, max_samples=self.max_samples, nrow=self.nrow, t=t)
-        )
+        try:
+            spikes = result["total_outs"]
+            t = len(result["out_temps"][0])
+            sample.update(
+                plot_spike_hist(spikes, layers=self.layers, ncol=self.ncol, t=t)
+            )
+        except:
+            pass
 
-        print(sample)
+        try:
+            z = result["latent"]
+            sample.update(
+                plot_z_hist(z, ncol=self.ncol)
+            )
+        except:
+            pass
 
         return sample
 
 
-def plot_spike_hist(spikes, layers, max_samples, nrow=8, t=100):
+def plot_z_hist(z, ncol=8):
+
+    sample = dict()
+
+    layer_spikes = z.cpu().numpy()
+    batch_size = z.shape[0]
+    n = z.shape[1]
+    max_z = np.max(layer_spikes)
+    min_z = np.min(layer_spikes)
+
+    ncols = min(batch_size, ncol)
+    nrows = batch_size // ncols + 1
+    if batch_size % ncols == 0:
+        nrows -= 1
+
+    img = plt.subplots(squeeze=False, sharey=True, sharex=True, figsize=(ncols, nrows * 0.6))
+
+    for i in range(batch_size):
+        batch_activity = layer_spikes[i, :]
+        row = i // ncols
+        col = i % ncols
+        ax = plt.subplot2grid((nrows, ncols), (row, col))
+        ax.hist(batch_activity, range=(min_z, max_z), density=False, bins=10)
+        ax.set_ylim((0.0, len(batch_activity)))
+        plt.xticks([0])
+        ax.tick_params(top=False, bottom=True, left=False, right=False,
+                       labelleft=False, labelbottom=False)
+
+    plt.tight_layout()
+    buf = io.BytesIO()
+    plt.savefig(buf, format="png")
+    buf.seek(0)
+    im = Image.open(buf)
+
+    sample.update(
+        {
+            f"z example hist":
+                wandb.Image(im, caption=f"z example hist")
+        }
+    )
+
+    buf.close()
+    #plt.show()
+    plt.close()
+
+    ncols = min(n, ncol)
+    nrows = n // ncols + 1
+    if n % ncols == 0:
+        nrows -= 1
+
+    img = plt.subplots(squeeze=False, sharey=True, sharex=True, figsize=(ncols, nrows * 0.6))
+
+    for i in range(n):
+        neuron_activity = layer_spikes[:, i]
+        row = i // ncols
+        col = i % ncols
+        ax = plt.subplot2grid((nrows, ncols), (row, col))
+        ax.hist(neuron_activity, range=(min_z, max_z), density=False, bins=10)
+        ax.set_ylim((0.0, len(neuron_activity)))
+        plt.xticks([0])
+        ax.tick_params(top=False, bottom=True, left=False, right=False,
+                       labelleft=False, labelbottom=False)
+
+    plt.tight_layout()
+    buf = io.BytesIO()
+    plt.savefig(buf, format="png")
+    buf.seek(0)
+    im = Image.open(buf)
+    # im.show()
+
+    sample.update(
+        {
+            f"z neuron hist":
+                wandb.Image(im, caption=f"z neuron hist")
+        }
+    )
+
+    buf.close()
+    #plt.show()
+    plt.close()
+
+    return sample
+
+
+
+def plot_spike_hist(spikes, layers, ncol=8, t=100):
 
     sample = dict()
 
@@ -127,7 +220,7 @@ def plot_spike_hist(spikes, layers, max_samples, nrow=8, t=100):
         batch_size = layer_spikes.shape[0]
         n = layer_spikes.shape[1]
 
-        ncols = min(batch_size, 8)
+        ncols = min(batch_size, ncol)
         nrows = batch_size // ncols + 1
         if batch_size % ncols == 0:
             nrows -= 1
@@ -139,8 +232,10 @@ def plot_spike_hist(spikes, layers, max_samples, nrow=8, t=100):
             row = i // ncols
             col = i % ncols
             ax = plt.subplot2grid((nrows, ncols), (row, col))
-            ax.hist(batch_spikes, range=(0.0, 1.0), density=True, bins=20)
-            ax.tick_params(top=False, bottom=False, left=False, right=False,
+            ax.hist(batch_spikes, range=(0.0, 1.0), density=False, bins=10)
+            plt.xticks([0])
+            ax.set_ylim((0.0, len(batch_spikes)))
+            ax.tick_params(top=False, bottom=True, left=False, right=False,
                            labelleft=False, labelbottom=False)
 
         plt.tight_layout()
@@ -159,7 +254,7 @@ def plot_spike_hist(spikes, layers, max_samples, nrow=8, t=100):
         buf.close()
         plt.close()
 
-        ncols = min(n, 8)
+        ncols = min(n, ncol)
         nrows = n // ncols + 1
         if n % ncols == 0:
             nrows -= 1
@@ -171,8 +266,10 @@ def plot_spike_hist(spikes, layers, max_samples, nrow=8, t=100):
             row = i // ncols
             col = i % ncols
             ax = plt.subplot2grid((nrows, ncols), (row, col))
-            ax.hist(neuron_spikes, range=(0.0, 1.0), density=True, bins=20)
-            ax.tick_params(top=False, bottom=False, left=False, right=False,
+            ax.hist(neuron_spikes, range=(0.0, 1.0), density=False, bins=10)
+            ax.set_ylim((0.0, len(neuron_spikes)))
+            plt.xticks([0])
+            ax.tick_params(top=False, bottom=True, left=False, right=False,
                               labelleft=False, labelbottom=False)
 
         plt.tight_layout()
@@ -255,35 +352,81 @@ class MatrixSampler(BaseSampler):
         sample = dict()
 
         try:
-            sample.update(plot_activity_matrix(
-                layers=self.layers,
-                **result
-            ))
+            if "out_temps" in result.keys():
+                sample.update(plot_spiking_activity_matrix(
+                    layers=self.layers,
+                    **result
+                ))
+            if "latent" in result.keys():
+                sample.update(plot_activity_matrix(
+                    **result
+                ))
         except:
             print("plot activity matrix failed")
 
         try:
-            sample.update(plot_example_activity_correlation(
-                layers=self.layers,
-                **result
-            ))
+            if "out_temps" in result.keys():
+                sample.update(plot_spiking_example_activity_correlation(
+                    layers=self.layers,
+                    **result
+                ))
+            if "latent" in result.keys():
+                sample.update(plot_example_activity_correlation(
+                    **result
+                ))
         except:
             print("plot example activity matrix failed")
 
         try:
-            sample.update(plot_neuron_activity_correlation(
-                layers=self.layers,
-                **result
-            ))
+            if "out_temps" in result.keys():
+                sample.update(plot_spiking_neuron_activity_correlation(
+                    layers=self.layers,
+                    **result
+                ))
+            if "latent" in result.keys():
+                sample.update(plot_neuron_activity_correlation(
+                    **result
+                ))
         except:
             print("plot neuron activity matrix failed")
 
         return sample
 
 
-def plot_example_activity_correlation(layers=[], **result):
+def plot_example_activity_correlation(**result):
 
-    out_spikes = result["out_temps"]
+    z = result["latent"].detach().cpu().numpy()
+    z = z[:, ~np.all(z == 0, axis=0)]  # drops all neurons that have 0 output for all examples (considered dead)
+    z[-1, :] += 0.001
+    z[:-1, -1] += 0.001
+
+    df = pd.DataFrame(z.T)
+
+    img = sns.clustermap(df.corr(), #.dropna(axis=0, how="all").dropna(axis=1, how="all"),
+                         vmin=-1.0,
+                         vmax=1.0,
+                         cmap="RdBu_r",
+                         center=0.0
+                         )
+
+    sample = dict()
+
+    sample.update(
+        {
+            "example activity correlation z":
+                wandb.Image(img.fig, caption="z correlation")
+        }
+    )
+
+    #plt.show()
+    plt.close()
+
+    return sample
+
+
+def plot_spiking_example_activity_correlation(layers=[], **result):
+
+    #out_spikes = result["out_temps"]
 
     if "labels" in result.keys():
         label = True
@@ -291,17 +434,23 @@ def plot_example_activity_correlation(layers=[], **result):
 
     sample = dict()
 
-    for idx in layers:
-        layer = out_spikes[idx]
-        timesteps = len(layer)
-        batch_size = layer[0].size()[0]
-        neurons = layer[0].view(batch_size, -1).size()[1]
-        batch_spikes = (
-            torch.stack(layer).detach().cpu().view(timesteps, batch_size, neurons)
-        )
-        mean_batch_spikes = torch.mean(batch_spikes, dim=0)
+    t = len(result["cum_potential_history"][0])
 
-        df = pd.DataFrame(mean_batch_spikes.T.numpy())
+    for idx in layers:
+        z = result["total_outs"][idx].detach().cpu().numpy()
+        z = z[:, ~np.all(z == 0, axis=0)]  # drops all neurons that have 0 output for all examples (considered dead)
+        z[-1, :] += 0.001
+        z[:-1, -1] += 0.001
+        #layer = out_spikes[idx]
+        #timesteps = len(layer)
+        #batch_size = z.shape[0]
+        #neurons = layer[0].view(batch_size, -1).size()[1]
+        #batch_spikes = (
+        #    torch.stack(layer).detach().cpu().view(timesteps, batch_size, neurons)
+        #)
+        #mean_batch_spikes = torch.mean(batch_spikes, dim=0)
+
+        df = pd.DataFrame(z.T / t)
 
         # TODO: check for non-finite values !
 
@@ -317,10 +466,11 @@ def plot_example_activity_correlation(layers=[], **result):
                 vmin=-1.0,
                 vmax=1.0,
                 cmap="RdBu_r",
+                center=0.0,
             )
 
         else:
-            img = sns.clustermap(df.corr(), vmin=-1.0, vmax=1.0,cmap="RdBu_r",)
+            img = sns.clustermap(df.corr(), vmin=-1.0, vmax=1.0, cmap="RdBu_r", center=0.0)
 
         sample.update(
             {
@@ -335,28 +485,64 @@ def plot_example_activity_correlation(layers=[], **result):
     return sample
 
 
-def plot_neuron_activity_correlation(layers=[], **result):
-    out_spikes = result["out_temps"]
+def plot_neuron_activity_correlation(**result):
+
+    z = result["latent"].detach().cpu().numpy()
+    z = z[:, ~np.all(z == 0, axis=0)]  # drops all neurons that have 0 output for all examples (considered dead)
+    z[-1, :] += 0.001
+    z[:-1, -1] += 0.001
 
     sample = dict()
 
-    for idx in layers:
-        layer = out_spikes[idx]
-        timesteps = len(layer)
-        batch_size = layer[0].size()[0]
-        neurons = layer[0].view(batch_size, -1).size()[1]
-        batch_spikes = (
-            torch.stack(layer).detach().cpu().view(timesteps, batch_size, neurons)
-        )
-        mean_batch_spikes = torch.mean(batch_spikes, dim=0)
+    df = pd.DataFrame(z)
 
-        df = pd.DataFrame(mean_batch_spikes.numpy())
-        #print(df)
-        #print(df.corr())
+    img = sns.clustermap(df.corr(),  #.dropna(axis=0, how="all").dropna(axis=1, how="all"),
+                         vmin=-1.0,
+                         vmax=1.0,
+                         cmap="RdBu_r",
+                         center=0.0
+                         )
+
+    sample.update(
+        {
+            "neuron activity correlation z":
+                wandb.Image(img.fig, caption="z correlation")
+        }
+    )
+
+    #plt.show()
+    plt.close()
+
+    return sample
+
+
+def plot_spiking_neuron_activity_correlation(layers=[], **result):
+    #out_spikes = result["out_temps"]
+
+    sample = dict()
+
+    t = len(result["cum_potential_history"][0])
+
+    for idx in layers:
+        z = result["total_outs"][idx].detach().cpu().numpy()
+        z = z[:, ~np.all(z == 0, axis=0)]  # drops all neurons that have 0 output for all examples (considered dead)
+        z[-1, :] += 0.001
+        z[:-1, -1] += 0.001
+        # layer = out_spikes[idx]
+        # timesteps = len(layer)
+        # batch_size = z.shape[0]
+        # neurons = layer[0].view(batch_size, -1).size()[1]
+        # batch_spikes = (
+        #    torch.stack(layer).detach().cpu().view(timesteps, batch_size, neurons)
+        # )
+        # mean_batch_spikes = torch.mean(batch_spikes, dim=0)
+
+        df = pd.DataFrame(z.T / t)
         img = sns.clustermap(df.corr().dropna(axis=0, how="all").dropna(axis=1, how="all"),
                              vmin=-1.0,
                              vmax=1.0,
                              cmap="RdBu_r",
+                             center=0.0
                              )
 
         sample.update(
@@ -372,7 +558,7 @@ def plot_neuron_activity_correlation(layers=[], **result):
     return sample
 
 
-def plot_activity_matrix(layers=[], **result):
+def plot_spiking_activity_matrix(layers=[], **result):
 
     out_spikes = result["out_temps"]
 
@@ -404,10 +590,12 @@ def plot_activity_matrix(layers=[], **result):
                 xticklabels=labels.numpy(),
                 vmin=0.0,
                 vmax=1.0,
+                cmap="RdBu_r",
+                center=0.0,
             )
 
         else:
-            img = sns.clustermap(df, vmin=0.0, vmax=1.0)
+            img = sns.clustermap(df, vmin=0.0, vmax=1.0, cmap="RdBu_r", center=0.0)
 
         sample.update(
             {
@@ -416,8 +604,50 @@ def plot_activity_matrix(layers=[], **result):
             }
         )
 
-        ##plt.show()
+        #plt.show()
         plt.close()
+
+    return sample
+
+
+def plot_activity_matrix(**result):
+
+    z = result["latent"].T.cpu().numpy()
+
+    sample = dict()
+
+    df = pd.DataFrame(z)
+    #print(df.head(100))
+    #print(np.sum(np.abs(z), axis=0).sum())
+    #print(np.sum(np.abs(z), axis=1).sum())
+    #print(np.sum(np.square(z), axis=0).sum())
+    #print(np.sum(np.square(z), axis=1).sum())
+
+
+    if "labels" in result.keys():
+        labels = result["labels"].cpu()
+        label_pal = sns.husl_palette(len(torch.unique(labels)), s=0.45)
+        label_lut = dict(zip(torch.unique(labels).numpy(), label_pal))
+        label_colors = pd.Series(labels.numpy()).map(label_lut)
+        img = sns.clustermap(
+            df,
+            col_colors=label_colors,
+            xticklabels=labels.numpy(),
+            center=0.0,
+            cmap="RdBu_r",
+        )
+
+    else:
+        img = sns.clustermap(df)
+
+    sample.update(
+        {
+            f"activity matrix z": wandb.Image(img.fig, caption=f"z")
+        }
+    )
+
+    #plt.show()
+    plt.close()
 
     return sample
 

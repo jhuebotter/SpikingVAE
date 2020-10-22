@@ -1,11 +1,12 @@
 import torch
 import torch.nn as nn
+from torch.distributions.logistic_normal import LogisticNormal
 from models.base_model import BaseModel
 from models.input_encoders import get_input_encoder
 import utils as u
 
 
-class ConvolutionalAutoencoder(BaseModel):
+class ConvolutionalVAE(BaseModel):
     def __init__(
         self,
         input_width,
@@ -30,7 +31,7 @@ class ConvolutionalAutoencoder(BaseModel):
         verbose=True,
         log_func=print,
     ):
-        super(ConvolutionalAutoencoder, self).__init__(
+        super(ConvolutionalVAE, self).__init__(
             input_width=input_width,
             input_height=input_height,
             input_channels=input_channels,
@@ -54,7 +55,7 @@ class ConvolutionalAutoencoder(BaseModel):
         self.paddings = [padding for i in range(len(conv2d_channels))]
         self.pooling_kernels = [pooling_kernel for i in range(len(conv2d_channels))]
         self.pooling_strides = [pooling_stride for i in range(len(conv2d_channels))]
-        self.model = CNNAutoencoderModel(
+        self.model = CNNVAEModel(
             input_width=self.input_width,
             input_height=self.input_height,
             input_channels=self.input_channels,
@@ -103,7 +104,16 @@ class ConvolutionalAutoencoder(BaseModel):
         self.log_func(f"Number of trainable parameters: {self.count_parameters()}")
 
 
-class CNNAutoencoderModel(nn.Module):
+    def update_(self, step=0, start=0, end=0.1, rate=0.9999, **kwargs):
+
+        try:
+            self.loss_function.beta = self.loss_function.end + (self.loss_function.start - self.loss_function.end) *\
+                                      self.loss_function.rate ** step
+        except:
+            print("could not change beta parameter for ELBO loss.")
+
+
+class CNNVAEModel(nn.Module):
     """Creates a CNN model."""
 
     def __init__(
@@ -123,7 +133,7 @@ class CNNAutoencoderModel(nn.Module):
         activation_out="logsoftmax",
         pooling="avg",
     ):
-        super(CNNAutoencoderModel, self).__init__()
+        super(CNNVAEModel, self).__init__()
 
         self.input_width = input_width
         self.input_height = input_height
@@ -161,12 +171,12 @@ class CNNAutoencoderModel(nn.Module):
         self._from_linear = (x_[0].shape[0], x_[0].shape[1], x_[0].shape[2])
 
         # define fully connected encoder layers
-        self.fc_encoder_activations = [activation for i in range(len(hidden_sizes))]
+        self.fc_encoder_activations = [activation for i in range(len(hidden_sizes)-1)] + [None]
 
         fc_encoder_args = dict(
             input_size=self._to_linear,
             hidden_sizes=self.hidden_sizes[:-1],
-            output_size=self.hidden_sizes[-1],
+            output_size=self.hidden_sizes[-1]*2,
             activations=self.fc_encoder_activations,
         )
         fc_encoder_parameters = u.get_fc_layers(**fc_encoder_args)
@@ -260,8 +270,10 @@ class CNNAutoencoderModel(nn.Module):
 
         x = self.conv_encode(x)
         x = self.fc_encode(x)
+        mu = x[:, :self.hidden_sizes[-1]]
+        logvar = x[:, self.hidden_sizes[-1]:]
 
-        return x
+        return mu, logvar
 
     def decode(self, x):
 
@@ -279,12 +291,17 @@ class CNNAutoencoderModel(nn.Module):
         """
 
         x_ = self.input_encoder.encode(x)
-        z = self.encode(x_)
+        mu, logvar = self.encode(x_)
+        z = self.reparametrize(mu, logvar)
+        #print(mu)
+        #print(logvar)
+        #print(z)
         y = self.decode(z)
 
-        #print(z.sum())
         result = dict(
             input=x,
+            mu=mu,
+            logvar=logvar,
             output=y,
             latent=z,
             input_history=self.input_encoder.input_history,)
@@ -292,5 +309,12 @@ class CNNAutoencoderModel(nn.Module):
         self.input_encoder.reset()
 
         return result
+
+    def reparametrize(self, mu, logvar):
+
+        std = logvar.div(2).exp()
+        eps = torch.randn_like(std, device=std.device)
+
+        return mu + std * eps
 
 

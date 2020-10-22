@@ -9,7 +9,11 @@ args = parser.parse_args()
 args.conv_channels = [int(item) for item in args.conv_channels.split(',')]
 args.loss = "custom"
 args.model = "scnn_autoencoder_new"
-args.metrics = []
+args.metrics = ["correlation",
+                "spikedensity",
+                "meanactivity",
+                "pctactive",
+                "pctactiveperexample"]
 args.samplers = ["plot_filters",
                  "plot_activity_matrix",
                  "plot_output_spikes",
@@ -61,6 +65,8 @@ loss_fn = losses.get_loss_function(loss=args.loss,
                                                lambd2=args.lambd2,
                                                l1=args.l1,
                                                l2=args.l2,
+                                               example2=args.example2,
+                                               neuron2=args.neuron2,
                                                layers=(len(args.conv_channels) + len(args.hidden_sizes)) * 2
                                                )
                                    )
