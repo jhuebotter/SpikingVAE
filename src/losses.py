@@ -153,6 +153,7 @@ class CustomSNNLoss(_Loss):
         l2=0.0,
         example2=0.0,
         neuron2=0.0,
+        neuron1=0.0,
         layers=0,
         reduction: str = "mean",
         **kwargs,
@@ -164,6 +165,7 @@ class CustomSNNLoss(_Loss):
         self.lambd2 = lambd2
         self.example2 = example2
         self.neuron2 = neuron2
+        self.neuron1 = neuron1
         self.l1 = l1
         self.l2 = l2
         self.latent_index = (layers / 2) - 1
@@ -179,6 +181,7 @@ class CustomSNNLoss(_Loss):
             "L2 weight loss",
             "example activity loss 2",
             "neuron activity loss 2",
+            "neuron activity loss 1",
             "mean pixelwise error",
             "own mse",
         ]
@@ -203,6 +206,7 @@ class CustomSNNLoss(_Loss):
         l2_weights = 0.0
         l2_example = 0.0
         l2_neuron = 0.0
+        l1_neuron = 0.0
         spike_densities = []
         pct_inactive_neurons = []
 
@@ -257,6 +261,8 @@ class CustomSNNLoss(_Loss):
             if i == self.latent_index:
                 l2_example = self.example2 * spikes.div(t).sum(dim=1).square().sum().div(batch_size)
                 l2_neuron = self.neuron2 * spikes.div(t).sum(dim=0).square().sum().div(batch_size)
+                l1_neuron = self.neuron1 * spikes.div(t).sum().div(batch_size)
+
 
         own_mse = (result["output"] - result["target"]) ** 2
         own_mse = torch.mean(own_mse)
@@ -272,11 +278,12 @@ class CustomSNNLoss(_Loss):
         print("L1 weight loss:", l1_weights)
         print("L2 weight loss:", l2_weights)
         print("average example activity loss 2:", l2_example)
+        print("average neuron activity loss 1:", l1_neuron)
         print("average neuron activity loss 2:", l2_neuron)
         print("own mse:", own_mse)
 
         loss = reconstruction_loss + l1_burst + l2_burst + l1_potential + l2_potential +\
-               l1_weights + l2_weights + l2_example + l2_neuron
+               l1_weights + l2_weights + l2_example + l1_neuron + l2_neuron
         
         losses = {
             "loss": loss,
@@ -288,6 +295,7 @@ class CustomSNNLoss(_Loss):
             "L1 weight loss": l1_weights,
             "L2 weight loss": l2_weights,
             "example activity loss 2": l2_example,
+            "neuron activity loss 1": l1_neuron,
             "neuron activity loss 2": l2_neuron,
             "mean pixelwise error": pixelwise_error,
             "own mse": own_mse,

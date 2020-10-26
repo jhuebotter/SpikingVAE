@@ -380,6 +380,13 @@ def get_argparser(description="", verbose=True):
         help="weight of the squared neuron activity loss term (default: 0.0)",
     )
     parser.add_argument(
+        "--neuron1",
+        default=0.0,
+        type=float,
+        metavar="N1",
+        help="weight of the neuron activity loss term (default: 0.0)",
+    )
+    parser.add_argument(
         "--inactivity_threshold",
         default=0,
         type=int,

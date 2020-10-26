@@ -148,7 +148,7 @@ def plot_z_hist(z, ncol=8):
         row = i // ncols
         col = i % ncols
         ax = plt.subplot2grid((nrows, ncols), (row, col))
-        ax.hist(batch_activity, range=(min_z, max_z), density=False, bins=10)
+        ax.hist(batch_activity, range=(min_z, max_z), density=False, bins=20)
         ax.set_ylim((0.0, len(batch_activity)))
         plt.xticks([0])
         ax.tick_params(top=False, bottom=True, left=False, right=False,
@@ -183,7 +183,7 @@ def plot_z_hist(z, ncol=8):
         row = i // ncols
         col = i % ncols
         ax = plt.subplot2grid((nrows, ncols), (row, col))
-        ax.hist(neuron_activity, range=(min_z, max_z), density=False, bins=10)
+        ax.hist(neuron_activity, range=(min_z, max_z), density=False, bins=20)
         ax.set_ylim((0.0, len(neuron_activity)))
         plt.xticks([0])
         ax.tick_params(top=False, bottom=True, left=False, right=False,
@@ -232,7 +232,7 @@ def plot_spike_hist(spikes, layers, ncol=8, t=100):
             row = i // ncols
             col = i % ncols
             ax = plt.subplot2grid((nrows, ncols), (row, col))
-            ax.hist(batch_spikes, range=(0.0, 1.0), density=False, bins=10)
+            ax.hist(batch_spikes, range=(0.0, 1.0), density=False, bins=20)
             plt.xticks([0])
             ax.set_ylim((0.0, len(batch_spikes)))
             ax.tick_params(top=False, bottom=True, left=False, right=False,
@@ -266,7 +266,7 @@ def plot_spike_hist(spikes, layers, ncol=8, t=100):
             row = i // ncols
             col = i % ncols
             ax = plt.subplot2grid((nrows, ncols), (row, col))
-            ax.hist(neuron_spikes, range=(0.0, 1.0), density=False, bins=10)
+            ax.hist(neuron_spikes, range=(0.0, 1.0), density=False, bins=20)
             ax.set_ylim((0.0, len(neuron_spikes)))
             plt.xticks([0])
             ax.tick_params(top=False, bottom=True, left=False, right=False,
@@ -537,7 +537,7 @@ def plot_spiking_neuron_activity_correlation(layers=[], **result):
         # )
         # mean_batch_spikes = torch.mean(batch_spikes, dim=0)
 
-        df = pd.DataFrame(z.T / t)
+        df = pd.DataFrame(z / t)
         img = sns.clustermap(df.corr().dropna(axis=0, how="all").dropna(axis=1, how="all"),
                              vmin=-1.0,
                              vmax=1.0,
