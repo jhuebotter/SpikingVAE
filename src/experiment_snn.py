@@ -67,7 +67,7 @@ loss_fn = losses.get_loss_function(loss=args.loss,
                                                l2=args.l2,
                                                example2=args.example2,
                                                neuron2=args.neuron2,
-                                               neuron1=1,
+                                               neuron1=args.neuron1,
                                                layers=(len(args.conv_channels) + len(args.hidden_sizes)) * 2
                                                )
                                    )
