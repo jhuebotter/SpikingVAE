@@ -10,6 +10,7 @@ args.conv_channels = [int(item) for item in args.conv_channels.split(',')]
 args.loss = "beta"
 args.encoder = "noisy"
 args.scale = 1.0
+args.beta_rate = 1.0
 #args.wd = 0.01
 #args.beta1 = 1.0 #1
 #args.epochs = 1
@@ -62,6 +63,7 @@ loss_fn = losses.get_loss_function(loss=args.loss,
                                                l2=args.l2,
                                                example2=args.example2,
                                                neuron2=args.neuron2,
+                                               rate=args.beta_rate,
                                                layers=(len(args.conv_channels) + len(args.hidden_sizes)) * 2
                                                )
                                    )
