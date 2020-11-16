@@ -10,11 +10,11 @@ args.conv_channels = [int(item) for item in args.conv_channels.split(',')]
 args.loss = "mse"
 args.encoder = "noisy"
 #args.experiment = "cnn_lr_grid"
-#args.scale = 1.0
+args.scale = 1.0
 #args.wd = 0.01
 #args.epochs = 1
 #args.noise = 0.0
-args.model = "cnn_autoencoder"
+#args.model = "cnn_autoencoder"
 args.metrics = ["correlation", "meanactivity", "pctactive", "pctactiveperexample"]
 args.samplers = ["plot_filters",
                  "plot_activity_matrix",
@@ -96,7 +96,7 @@ net.train_and_evaluate(
     train_loader=train_loader,
     val_loader=val_loader,
     epochs=args.epochs,
-    model_name="cnn_experiment",
+    model_name=args.model,
     metrics=args.metrics,
     key_metric="validation loss",
     goal=args.goal,

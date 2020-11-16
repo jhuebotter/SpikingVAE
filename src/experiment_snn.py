@@ -8,7 +8,7 @@ parser = u.get_argparser()
 args = parser.parse_args()
 args.conv_channels = [int(item) for item in args.conv_channels.split(',')]
 args.loss = "custom"
-args.model = "scnn_autoencoder_new"
+#args.model = "scnn_autoencoder_new"
 args.metrics = ["correlation",
                 "spikedensity",
                 "meanactivity",
@@ -112,7 +112,7 @@ net.train_and_evaluate(
     train_loader=train_loader,
     val_loader=val_loader,
     epochs=args.epochs,
-    model_name="spiking_test",
+    model_name=args.model,
     metrics=args.metrics,
     key_metric="validation loss",
     goal=args.goal,

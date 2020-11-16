@@ -41,7 +41,7 @@ def get_argparser(description="", verbose=True):
     )
     parser.add_argument(
         "--model",
-        default="scnn_autoencoder",
+        default="spiking_autoencoder",
         type=str,
         help="model used for training or evaluation [fcn_classifier, cnn_classifier] (default: cnn_classifier)",
     )

@@ -15,7 +15,7 @@ args.beta_rate = 1.0
 #args.beta1 = 1.0 #1
 #args.epochs = 1
 #args.noise = 0.8
-args.model = "cnn_vae"
+#args.model = "cnn_vae"
 args.metrics = ["correlation", "pctactive", "meanactivity", "pctactiveperexample"]
 args.samplers = ["plot_filters",
                  "plot_activity_matrix",
@@ -98,7 +98,7 @@ net.train_and_evaluate(
     train_loader=train_loader,
     val_loader=val_loader,
     epochs=args.epochs,
-    model_name="vae_experiment",
+    model_name=args.model,
     metrics=args.metrics,
     key_metric="validation loss",
     goal=args.goal,
