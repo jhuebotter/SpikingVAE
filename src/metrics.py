@@ -60,10 +60,13 @@ def pct_active_per_example(**result):
 
     batch_size = z.shape[0]
     z = z[:, ~np.all(z == 0, axis=0)]  # drops all neurons that have 0 output for all examples (considered dead)
-    n = z.shape[1]
+    n_ = z.shape[1]
+    if n_ == 0:
+        return 0
+
     active = np.count_nonzero(z)
 
-    return active / (batch_size * n)
+    return active / (batch_size * n_)
 
 
 def example_activity_correlation(**result):
