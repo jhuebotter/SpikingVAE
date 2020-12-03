@@ -1013,6 +1013,10 @@ def set_seed(seed, verbose=True):
     torch.manual_seed(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
+    try:
+        np.random.seed(seed)
+    except:
+        pass
 
 
 def get_datasets(
