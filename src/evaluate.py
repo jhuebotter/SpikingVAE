@@ -27,8 +27,8 @@ args.samplers = ["plot_filters",
                  ]
 
 if not args.load:
-    args.load = "/media/justus/Data/OneDrive/Projects/SpikingVAE/results/checkpoints/SAE_sparse_latest.pth"
-
+    #args.load = "/media/justus/Data/OneDrive/Projects/SpikingVAE/results/checkpoints/SAE_sparse_latest.pth"
+    args.load = "/var/scratch/jhr264/SpikingVAE/results/experiment_default/wandb/run-20201116_172011-j04bf5ti/files/checkpoints/SAE_sparse_latest.pth"
 
 # make experiments reproducible
 if args.seed:
