@@ -324,7 +324,7 @@ class BaseModel:
         if not Path.exists(path):
             raise FileNotFoundError(f"File {path} doesn't exist")
 
-        checkpoint = torch.load(path)
+        checkpoint = torch.load(path.as_posix())
         model.load_state_dict(checkpoint["state_dict"])
 
         if optimizer:

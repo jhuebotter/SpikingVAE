@@ -209,7 +209,7 @@ def get_argparser(description="", verbose=True):
         default="",
         type=str,
         metavar="PATH",
-        help="path to latest checkpoint (default: none)",
+        help="path to latest checkpoint (default: '')",
     )
     parser.add_argument(
         "--epochs",
@@ -227,7 +227,7 @@ def get_argparser(description="", verbose=True):
     )
     parser.add_argument(
         "--sample_freq",
-        default=150,
+        default=10000,
         type=int,
         metavar="SF",
         help="step between batches to sample results of; 0 is no sampling (default: 0)",
@@ -410,7 +410,7 @@ def get_argparser(description="", verbose=True):
 
     if verbose:
         print(f"Initialized argument parser {description} with settings:")
-        args = parser.parse_args()
+        args = parser.parse_args("")
         for arg in vars(args):
             print(arg, getattr(args, arg))
 
