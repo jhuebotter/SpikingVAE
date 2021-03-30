@@ -8,6 +8,7 @@ import metrics as met
 import samplers as sam
 import losses
 import shutil
+import time
 
 class BaseModel:
     """Custom neural network base model."""
@@ -145,7 +146,7 @@ class BaseModel:
 
         return result
 
-    def train(self, train_loader, epoch, metrics={}, max_epoch_batches=0):
+    def train(self, train_loader, epoch, metrics={}, max_batches=0):
         """Train the model for a single epoch
 
         Args:
@@ -153,7 +154,7 @@ class BaseModel:
             epoch (int): current training epoch
             metrics (dict, optional): contains names and functions of metrics
                 to be calculated during training (default: {})
-            max_epoch_batches (int, optional): limits number of batches per epoch, 0 = no limit (default: 0)
+            max_batches (int, optional): limits number of batches per epoch, 0 = no limit (default: 0)
 
         Returns:
             dict: average loss and optional metrics on training dataset
@@ -161,49 +162,53 @@ class BaseModel:
 
         self.model.train()
 
-        summary = {metric: u.RunningAverage() for metric in metrics.keys()}
+        summary = {"batch time": u.RunningAverage()}
+        summary.update({m: u.RunningAverage() for m in metrics.keys()})
         summary.update({l: u.RunningAverage() for l in self.loss_function.loss_labels})
 
-        #loss_avg = u.RunningAverage()
+        n = min(max_batches, len(train_loader)) if max_batches else len(train_loader)
 
-        with tqdm(total=len(train_loader) if not max_epoch_batches else max_epoch_batches) as t:
+        with tqdm(total=n) as t:
             for batch_idx, (data_batch, target_batch) in enumerate(train_loader):
+
+                t0 = time.time()
+
                 data_batch = data_batch.to(self.device)
                 target_batch = target_batch.to(self.device)
                 if self.task == "reconstruction":
                     target_batch = data_batch
                 result = self.step(data_batch, target_batch, train=True)
-                loss = result["loss"]
-
-                # update the average loss
-                #loss_avg.update(loss / len(target_batch))
 
                 # calculate metrics
+                summary["batch time"].update(time.time() - t0)
                 for metric, metric_fn in metrics.items():
                     summary[metric].update(metric_fn(**result))
                 for l in self.loss_function.loss_labels:
                     summary[l].update(result[l])
 
-                #t.set_postfix(loss="{:05.4f}".format(loss_avg()))
                 t.set_postfix(loss="{:05.4f}".format(summary["loss"]()))
                 t.update()
 
-                if batch_idx+1 == max_epoch_batches:
+                if batch_idx+1 == max_batches:
                     break
 
         # create the results dict
-        train_results = {} #dict(loss=loss_avg())
+        train_results = {key: value() for (key, value) in summary.items()}
+
+        """
+        train_results = {}
         for metric in metrics.keys():
             train_results[metric] = summary[metric]()
         for l in self.loss_function.loss_labels:
             train_results[l] = summary[l]()
+        """
 
         if self.verbose:
             self.log_func(f"====> Epoch {epoch}: Average loss = {summary['loss']():.4f}")
 
         return train_results
 
-    def evaluate(self, test_loader, metrics={}, samplers={}, sample_freq=0):
+    def evaluate(self, test_loader, metrics={}, samplers={}, sample_freq=0, max_batches=0):
         """Evaluate the model on a validation or test set
 
         Args:
@@ -215,6 +220,8 @@ class BaseModel:
             sample_freq (int, optional): determines how often to sample the current data batch.
                 Has no effect if samplers is empty.
                 0 = no samples, 1 = sample every batch, 10 = sample every 10 batches (default: 0)
+            max_batches (int, optional): limits how many batches should be evaluated.
+                0 = no limit (default: 0)
 
         Returns:
             dict: average loss and optional metrics on test or validation data
@@ -223,55 +230,60 @@ class BaseModel:
 
         self.model.eval()
 
-        summary = {metric: u.RunningAverage() for metric in metrics.keys()}
+        summary = {"batch time": u.RunningAverage()}
+        summary.update({m: u.RunningAverage() for m in metrics.keys()})
         summary.update({l: u.RunningAverage() for l in self.loss_function.loss_labels})
-
 
         samples = {}
 
-        #loss_avg = u.RunningAverage()
+        n = min(max_batches, len(test_loader)) if max_batches else len(test_loader)
 
         with torch.no_grad():
-            with tqdm(total=len(test_loader)) as t:
+            with tqdm(total=n) as t:
                 for batch_idx, (data_batch, target_batch) in enumerate(test_loader):
+
+                    t0 = time.time()
+
                     data_batch = data_batch.to(self.device)
                     target_batch = target_batch.to(self.device)
                     label_batch = target_batch
                     if self.task == "reconstruction":
                         target_batch = data_batch
                     result = self.step(data_batch, target_batch, train=False)
-                    #loss = result["loss"]
+
+                    summary["batch time"].update(time.time() - t0)
+
                     result["labels"] = label_batch
                     if self.input_layer is not None:
                         result["input weights"] = self.input_layer.weight.data.cpu()
                     if self.output_layer is not None:
                         result["output weights"] = self.output_layer.weight.data.cpu()
 
-                    # update the average loss
-                    #loss_avg.update(loss / len(target_batch))
-
                     # calculate the metrics
                     for metric, metric_fn in metrics.items():
                         summary[metric].update(metric_fn(**result))
-                    #print(result.keys())
                     for l in self.loss_function.loss_labels:
-                        #print(l)
                         summary[l].update(result[l])
 
                     if sample_freq and batch_idx % sample_freq == 0:
                         for sampler, sampler_fn in samplers.items():
                             samples.update({f"{sampler} batch {batch_idx}": sampler_fn(**result)})
 
-                    # t.set_postfix(loss="{:05.4f}".format(loss_avg()))
                     t.set_postfix(loss="{:05.4f}".format(summary["loss"]()))
                     t.update()
 
+                    if max_batches and batch_idx == max_batches-1:
+                        break
+
         # create the results dict
-        test_results = {} #dict(loss=loss_avg())
+        test_results = {key: value() for (key, value) in summary.items()}
+
+        """
         for metric in metrics.keys():
             test_results[metric] = summary[metric]()
         for l in self.loss_function.loss_labels:
             test_results[l] = summary[l]()
+        """
 
         if self.verbose:
             name = self.model.__class__.__name__
@@ -332,8 +344,8 @@ class BaseModel:
 
         if verbose:
             self.log_func("Found checkpoint entries:")
-            for key in checkpoint.keys():
-                self.log_func(key)
+            for k, v in checkpoint.items():
+                self.log_func(f"{k:20} {type(v)}")
             self.log_func(f"Loaded model state from {path}\n")
             if optimizer:
                 self.log_func(f"Loaded optimizer state from {path}\n")
@@ -400,6 +412,7 @@ class BaseModel:
             )
             start_epoch = checkpoint["epoch"] + 1
             training_summary = checkpoint["training_summary"]
+            del checkpoint
         else:
             start_epoch = 1
             training_summary = {}
@@ -429,6 +442,8 @@ class BaseModel:
                 for batch, sample in samples.items():
                     for key, value in sample.items():
                         logger.log({f"{batch}_{key}": value}, step=start_epoch - 1)
+
+            del val_results, samples, summary
 
         if self.verbose:
             self.log_func(f"Training {model_name} model for {epochs} epochs...")
@@ -490,6 +505,8 @@ class BaseModel:
                 is_best=is_best,
                 verbose=self.verbose,
             )
+
+            del checkpoint, train_results, val_results, samples, summary
 
 
 

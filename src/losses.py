@@ -18,13 +18,13 @@ def get_loss_function(loss, verbose=True, spiking=False, params={}):
         print(k, v)
 
     if loss.lower() == "crossentropy":
-        loss_function = CustomCrossEntropyLoss()
+        loss_function = CustomCrossEntropyLoss(verbose=verbose)
     elif loss.lower() == "mse":
-        loss_function = CustomMSELoss(reduction="sum", **params)
+        loss_function = CustomMSELoss(reduction="sum", verbose=verbose, **params)
     elif loss.lower() == "custom":
-        loss_function = CustomSNNLoss(reduction="sum", **params)
+        loss_function = CustomSNNLoss(reduction="sum", verbose=verbose, **params)
     elif loss.lower() == "beta":
-        loss_function = CustomBetaLoss(reduction="sum", **params)
+        loss_function = CustomBetaLoss(reduction="sum", verbose=verbose, **params)
     else:
         raise NotImplementedError(
             f"The loss function {loss} is not implemented.\n"
@@ -46,6 +46,7 @@ class CustomMSELoss(_Loss):
             example2=0.0,
             neuron2=0.0,
             reduction: str = "mean",
+            verbose=False,
             **kwargs,
     ) -> None:
         super(CustomMSELoss, self).__init__(reduction=reduction)
@@ -53,6 +54,8 @@ class CustomMSELoss(_Loss):
         self.l2 = l2
         self.example2 = example2
         self.neuron2 = neuron2
+        self.verbose = verbose
+
         self.loss_labels = [
             "loss",
             "reconstruction loss",
@@ -88,14 +91,15 @@ class CustomMSELoss(_Loss):
             l1_weights = l1_weights + self.l1 * weights.abs().sum()
             l2_weights = l2_weights + self.l2 * weights.square().sum()
 
-        print()
-        print("mean pixelwise error:", pixelwise_error)
-        print("average reconstruction loss:", reconstruction_loss)
-        print("L1 weight loss:", l1_weights)
-        print("L2 weight loss:", l2_weights)
-        print("average example activity loss 2:", l2_example)
-        print("average neuron activity loss 2:", l2_neuron)
-        print("own mse", own_mse)
+        if self.verbose:
+            print()
+            print("mean pixelwise error:", pixelwise_error)
+            print("average reconstruction loss:", reconstruction_loss)
+            print("L1 weight loss:", l1_weights)
+            print("L2 weight loss:", l2_weights)
+            print("average example activity loss 2:", l2_example)
+            print("average neuron activity loss 2:", l2_neuron)
+            print("own mse", own_mse)
 
         loss = reconstruction_loss + l1_weights + l2_weights + l2_neuron + l2_example
 
@@ -122,12 +126,14 @@ class CustomCrossEntropyLoss(_WeightedLoss):
         weight: Optional[Tensor] = None,
         ignore_index: int = -100,
         reduction: str = "mean",
+        verbose=False,
         **kwargs,
     ) -> None:
         super(CustomCrossEntropyLoss, self).__init__(
             weight, reduction=reduction
         )
         self.ignore_index = ignore_index
+        self.verbose = verbose
 
     def forward(self, **result) -> Tensor:
         return F.cross_entropy(
@@ -156,6 +162,7 @@ class CustomSNNLoss(_Loss):
         neuron1=0.0,
         layers=0,
         reduction: str = "mean",
+        verbose=False,
         **kwargs,
     ) -> None:
         super(CustomSNNLoss, self).__init__(reduction=reduction)
@@ -169,6 +176,8 @@ class CustomSNNLoss(_Loss):
         self.l1 = l1
         self.l2 = l2
         self.latent_index = (layers / 2) - 1
+        self.verbose = verbose
+
 
         self.loss_labels = [
             "loss",
@@ -218,21 +227,23 @@ class CustomSNNLoss(_Loss):
             for j in [*result["cum_potential_history"][i][-1].size()][1:]:
                 N *= j
 
-            print()
-            print("layer", i+1)
-            print("units:", N)
-
             spikes = result["total_outs"][i]
 
             inactive = (spikes.sum(dim=0) == 0).sum(dtype=float) / N
             pct_inactive_neurons.append(inactive)
-            print("pct inactive neurons:", inactive)
 
             spike_densities.append(spikes.sum() / (N * (1. - inactive) * t * batch_size))
-            print("average normalized spike density:", spike_densities[-1])
 
             activity = result["cum_potential_history"][i][-1]
             weights = result["weights"][i]
+
+            if self.verbose:
+                print()
+                print("layer", i+1)
+                print("units:", N)
+                print("pct inactive neurons:", inactive)
+                print("average normalized spike density:", spike_densities[-1])
+
 
             """
             print("squared sum / N:", spikes.square().sum() / N)
@@ -268,19 +279,20 @@ class CustomSNNLoss(_Loss):
         own_mse = torch.mean(own_mse)
         pixelwise_error = (result["output"] - result["target"]).abs().mean()
 
-        print()
-        print("pixelwise error:", pixelwise_error)
-        print("average reconstruction loss:", reconstruction_loss)
-        print("average burst loss 1:", l1_burst)
-        print("average burst loss 2:", l2_burst)
-        print("average potential loss 1:", l1_potential)
-        print("average potential loss 2:", l2_potential)
-        print("L1 weight loss:", l1_weights)
-        print("L2 weight loss:", l2_weights)
-        print("average example activity loss 2:", l2_example)
-        print("average neuron activity loss 1:", l1_neuron)
-        print("average neuron activity loss 2:", l2_neuron)
-        print("own mse:", own_mse)
+        if self.verbose:
+            print()
+            print("pixelwise error:", pixelwise_error)
+            print("average reconstruction loss:", reconstruction_loss)
+            print("average burst loss 1:", l1_burst)
+            print("average burst loss 2:", l2_burst)
+            print("average potential loss 1:", l1_potential)
+            print("average potential loss 2:", l2_potential)
+            print("L1 weight loss:", l1_weights)
+            print("L2 weight loss:", l2_weights)
+            print("average example activity loss 2:", l2_example)
+            print("average neuron activity loss 1:", l1_neuron)
+            print("average neuron activity loss 2:", l2_neuron)
+            print("own mse:", own_mse)
 
         loss = reconstruction_loss + l1_burst + l2_burst + l1_potential + l2_potential +\
                l1_weights + l2_weights + l2_example + l1_neuron + l2_neuron
@@ -324,6 +336,7 @@ class CustomBetaLoss(_Loss):
         neuron2=0.0,
         rate=0.9999,
         reduction: str = "mean",
+        verbose=False,
         **kwargs,
     ) -> None:
         super(CustomBetaLoss, self).__init__(reduction=reduction)
@@ -335,7 +348,7 @@ class CustomBetaLoss(_Loss):
         self.l2 = l2
         self.example2 = example2
         self.neuron2 = neuron2
-
+        self.verbose = verbose
 
         self.loss_labels = [
             "loss",
@@ -379,17 +392,18 @@ class CustomBetaLoss(_Loss):
             l1_weights = l1_weights + self.l1 * weights.abs().sum()
             l2_weights = l2_weights + self.l2 * weights.square().sum()
 
-        print()
-        print("mean pixelwise error:", pixelwise_error)
-        print("average reconstruction loss:", reconstruction_loss)
-        print("average KL loss:", beta_loss)
-        print("mean KLD:", mean_kld)
-        print("L1 weight loss:", l1_weights)
-        print("L2 weight loss:", l2_weights)
-        print("average example activity loss 2:", l2_example)
-        print("average neuron activity loss 2:", l2_neuron)
-        print("own mse", own_mse)
-        print("beta:", self.beta)
+        if self.verbose:
+            print()
+            print("mean pixelwise error:", pixelwise_error)
+            print("average reconstruction loss:", reconstruction_loss)
+            print("average KL loss:", beta_loss)
+            print("mean KLD:", mean_kld)
+            print("L1 weight loss:", l1_weights)
+            print("L2 weight loss:", l2_weights)
+            print("average example activity loss 2:", l2_example)
+            print("average neuron activity loss 2:", l2_neuron)
+            print("own mse", own_mse)
+            print("beta:", self.beta)
 
         loss = reconstruction_loss + beta_loss + l1_weights + l2_weights
 

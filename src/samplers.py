@@ -4,17 +4,27 @@ import io
 from PIL import Image
 from torchvision.utils import make_grid
 import wandb
-import matplotlib
+import matplotlib as mpl
 import matplotlib.pyplot as plt
-#matplotlib.use('Agg')
+from mpl_toolkits.mplot3d import Axes3D
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 import pandas as pd
 import seaborn as sns
+from pathlib import Path
+
+#mpl.use('Agg')
+new_rc_params = {'text.usetex': False,
+"svg.fonttype": 'none'
+}
+mpl.rcParams.update(new_rc_params)
+
 
 LAYERS = [2]
-MAX_SAMPLES = 20
+MAX_SAMPLES = 100
+FORM = ""
+DIR = ""
 
-
-def get_samplers(sampler_names):
+def get_samplers(sampler_names, scale=1.0):
 
     samplers = dict()
 
@@ -23,7 +33,11 @@ def get_samplers(sampler_names):
             {
                 "plot_reconstruction": ReconstructionSampler(
                     cbar=True,
-                    max_samples=MAX_SAMPLES
+                    max_samples=MAX_SAMPLES,
+                    form=FORM,
+                    vmin=0.0,
+                    vmax=1.2,
+                    scale=scale,
                 )
             }
         )
@@ -35,6 +49,7 @@ def get_samplers(sampler_names):
                     plot_small=True,
                     plot_large=True,
                     max_samples=MAX_SAMPLES,
+                    form=FORM,
                 )
             }
         )
@@ -49,6 +64,7 @@ def get_samplers(sampler_names):
                     layers=LAYERS,
                     cumulative=cumulative,
                     max_samples=MAX_SAMPLES,
+                    form=FORM,
                 )
             }
         )
@@ -58,6 +74,7 @@ def get_samplers(sampler_names):
                 "plot_activity_matrix": MatrixSampler(
                     layers=LAYERS,
                     max_samples=MAX_SAMPLES,
+                    form=FORM,
                 )
             }
         )
@@ -67,6 +84,7 @@ def get_samplers(sampler_names):
                 "plot_filters": FilterSampler(
                     nrow=8,
                     max_samples=MAX_SAMPLES,
+                    form=FORM,
                 )
             }
         )
@@ -77,6 +95,38 @@ def get_samplers(sampler_names):
                     nrow=8,
                     max_samples=MAX_SAMPLES,
                     layers=LAYERS,
+                    form=FORM,
+                )
+            }
+        )
+    if "plot_encoding" in sampler_names:
+        samplers.update(
+            {
+                "plot_encoding": PoissonEncodingSampler(
+                    max_samples=MAX_SAMPLES,
+                    form=FORM,
+                )
+            }
+        )
+
+    if "animate_reconstruction" in sampler_names:
+        samplers.update(
+            {
+                "animate_reconstruction": ReconstructionAnimationSampler(
+                    max_samples=MAX_SAMPLES,
+                    layers=LAYERS,
+                    form="mp4",
+                )
+            }
+        )
+
+    if "plot_pca" in sampler_names:
+        samplers.update(
+            {
+                "plot_pca": PcaSampler(
+                    max_samples=MAX_SAMPLES,
+                    layers=LAYERS,
+                    form=FORM,
                 )
             }
         )
@@ -87,6 +137,7 @@ def get_samplers(sampler_names):
 class BaseSampler:
     def __init__(self, **kwargs):
         self.max_samples = kwargs.pop("max_samples")
+        self.form = kwargs.pop("form")
 
     def sample(self, **result):
         # to be implemented by child classes
@@ -94,6 +145,352 @@ class BaseSampler:
 
     def __call__(self, **results):
         return self.sample(**results)
+
+
+class PcaSampler(BaseSampler):
+    def __init__(self, layers=[], **kwargs):
+
+        super().__init__(**kwargs)
+        self.layers = layers
+        global PCA, StandardScaler
+        from sklearn.decomposition import PCA, FastICA
+        from sklearn.preprocessing import StandardScaler
+
+    def sample(self, **result):
+        sample = dict()
+        # try:
+        for b in [True, False]:
+            if "out_temps" in result.keys():
+                sample.update(
+                    pca_spike_plot(result["out_temps"],
+                             result["labels"],
+                             self.layers,
+                             self.form,
+                             three_d=b)
+                )
+            if "latent" in result.keys():
+                sample.update(
+                    pca_z_plot(result["latent"],
+                                   result["labels"],
+                                   self.form,
+                                   three_d=b)
+                )
+
+        # except:
+        #    pass
+
+        return sample
+
+
+def pca_z_plot(z, labels, form="", three_d=True):
+
+    sample = dict()
+
+    x = z.cpu().numpy()
+
+    labels = labels.cpu().numpy()
+    dim = "3d" if three_d else "2d"
+
+    scaler = StandardScaler()
+    x = scaler.fit_transform(x)
+
+    if three_d:
+        pca = PCA(n_components=3)
+        principal_components = pca.fit_transform(x)
+        pca_df = pd.DataFrame(data=principal_components,
+                              columns=['principal component 1', 'principal component 2', 'principal component 3'])
+        pca_df["label"] = labels
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        x = pca_df['principal component 1']
+        y = pca_df['principal component 2']
+        z = pca_df['principal component 3']
+        scatter = ax.scatter(x, y, z, c=labels, label=labels, cmap="tab10")
+        legend = ax.legend(*scatter.legend_elements(),
+                           loc="lower left", title="Classes")
+        ax.add_artist(legend)
+    else:
+        pca = PCA(n_components=2)
+        principal_components = pca.fit_transform(x)
+        pca_df = pd.DataFrame(data=principal_components, columns=['principal component 1', 'principal component 2'])
+        pca_df["label"] = labels
+        sns.scatterplot(data=pca_df, x="principal component 1", y="principal component 2", hue="label", palette="tab10")
+
+    if form:
+        Path(DIR).mkdir(exist_ok=True)
+        path = Path(DIR, f"representation_PCA_layer_{dim}.{form}")
+        plt.savefig(path, format=form)
+
+    buf = io.BytesIO()
+    plt.savefig(buf, format="png")
+    buf.seek(0)
+    im = Image.open(buf)
+
+    sample.update(
+        {
+            f"representation PCA layer {dim}":
+                wandb.Image(im, caption=f"representation PCA layer {dim}")
+        }
+    )
+
+    buf.close()
+    plt.close()
+
+    return sample
+
+
+def pca_spike_plot(out_spikes, labels, layers=[], form="", three_d=True):
+
+    sample = dict()
+
+    labels = labels.cpu().numpy()
+    dim = "3d" if three_d else "2d"
+
+    for idx in layers:
+
+        layer = out_spikes[idx]
+        timesteps = len(layer)
+        batch_size = layer[0].size()[0]
+        neurons = layer[0].view(batch_size, -1).size()[1]
+        batch_spikes = (
+            torch.stack(layer).detach().cpu().view(timesteps, batch_size, neurons)
+        )
+        mean_batch_spikes = torch.mean(batch_spikes, dim=0)
+        x = mean_batch_spikes.numpy()
+
+        scaler = StandardScaler()
+        x = scaler.fit_transform(x)
+
+        if three_d:
+            pca = PCA(n_components=3)
+            principal_components = pca.fit_transform(x)
+            pca_df = pd.DataFrame(data=principal_components,
+                                  columns=['principal component 1', 'principal component 2', 'principal component 3'])
+            pca_df["label"] = labels
+            fig = plt.figure()
+            ax = fig.add_subplot(111, projection='3d')
+            x = pca_df['principal component 1']
+            y = pca_df['principal component 2']
+            z = pca_df['principal component 3']
+            scatter = ax.scatter(x, y, z, c=labels, label=labels, cmap="tab10")
+            legend = ax.legend(*scatter.legend_elements(),
+                                loc="lower left", title="Classes")
+            ax.add_artist(legend)
+        else:
+            pca = PCA(n_components=2)
+            principal_components = pca.fit_transform(x)
+            pca_df = pd.DataFrame(data=principal_components, columns=['principal component 1', 'principal component 2'])
+            pca_df["label"] = labels
+            sns.scatterplot(data=pca_df, x="principal component 1", y="principal component 2", hue="label", palette="tab10")
+
+        if form:
+            Path(DIR).mkdir(exist_ok=True)
+            path = Path(DIR, f"representation_PCA_layer_{idx}_{dim}.{form}")
+            plt.savefig(path, format=form)
+
+        buf = io.BytesIO()
+        plt.savefig(buf, format="png")
+        buf.seek(0)
+        im = Image.open(buf)
+
+        sample.update(
+            {
+                f"representation PCA layer {idx} {dim}":
+                wandb.Image(im, caption=f"representation PCA layer {idx} {dim}")
+            }
+        )
+
+        buf.close()
+        plt.close()
+
+    return sample
+
+
+class ReconstructionAnimationSampler(BaseSampler):
+    def __init__(self, layers=[], **kwargs):
+
+        super().__init__(**kwargs)
+        global Camera
+        from celluloid import Camera
+        self.layers = layers
+
+    def sample(self, **result):
+
+        sample = dict()
+        #try:
+        sample.update(
+            reconstruction_animation(result["input_history"],
+                                     result["target"],
+                                     result["out_temps"],
+                                     result["cum_potential_history"][-1],
+                                     self.layers,
+                                     self.form)
+        )
+        #except:
+        #    pass
+
+        return sample
+
+
+def reconstruction_animation(input_history, target, out_spikes, output_potential_history, layers=[], form="gif", cbar=True):
+
+    sample = dict()
+
+    t = len(input_history)
+
+    output_history = torch.stack(output_potential_history)
+
+    for layer in layers:
+
+        layer_spikes = out_spikes[layer]
+        batch_size = layer_spikes[0].size()[0]
+        neurons = layer_spikes[0].view(batch_size, -1).size()[1]
+        batch_spikes = (
+            torch.stack(layer_spikes).detach().cpu().view(t, batch_size, neurons)
+        )
+        output_spikes = out_spikes[-1]
+
+
+        for example in [0]:
+
+            example_history = output_history[:, example]
+
+            fig, axs = plt.subplots(1, 5, figsize=(20, 4))
+            dividers = [make_axes_locatable(axs[i]) for i in [0, 1, 2, 4]]  # , 5]]
+            #divider = make_axes_locatable(axs[2])
+            caxs = [d.append_axes('right', size='5%', pad=0.05) for d in dividers]
+            #cax = divider.append_axes('right', size='5%', pad=0.05)
+            #cax = fig.add_axes([0.27, 0.8, 0.5, 0.05])
+            camera = Camera(fig)
+            example_target = np.squeeze(target[example].cpu().numpy())
+            input_canvas = np.zeros(input_history[0][example].size())
+            #output_canvas = np.copy(input_canvas)
+            max_output = np.copy(input_canvas)
+            input_now = np.copy(input_canvas)
+            spike_indices = []
+            vmax = 25
+
+            for i in range(t+1):
+
+                #fig.suptitle(f"t = {i}", fontsize=16)
+
+                im0 = axs[0].matshow(example_target, interpolation="nearest", vmin=0, vmax=1)
+                axs[0].set_title("Original")
+                fig.colorbar(im0, cax=caxs[0])
+
+                im1 = axs[1].matshow(np.squeeze(input_now), interpolation="nearest", vmin=0, vmax=1)
+                axs[1].set_title("Network input at t")
+                fig.colorbar(im1, cax=caxs[1])
+
+                im2 = axs[2].matshow(np.squeeze(input_canvas), interpolation="nearest", vmin=0, vmax=vmax)
+                axs[2].set_title("Summed input until t")
+                fig.colorbar(im2, cax=caxs[2])
+
+                axs[3].eventplot(spike_indices, colors="black")
+                axs[3].set_title("Spiking latent representation")
+
+                im4 = axs[4].matshow(np.squeeze(max_output), interpolation="nearest", vmin=0, vmax=vmax)
+                axs[4].set_title("Network output potential")
+                fig.colorbar(im4, cax=caxs[3])
+
+                #im5 = axs[5].matshow(np.squeeze(output_canvas), interpolation="nearest", vmin=0, vmax=vmax)
+                #axs[5].set_title("Network output spikes")
+                #fig.colorbar(im5, cax=caxs[4])
+
+                #ttl = axs[2].text(3.0, 3.0, f"t = {i}", horizontalalignment='left', verticalalignment='bottom')
+
+                for n in [0, 1, 2, 4]:  # , 5]:
+                    axs[n].axes.xaxis.set_visible(False)
+                    axs[n].axes.yaxis.set_visible(False)
+
+                plt.tight_layout()
+                camera.snap()
+
+                if i < t:
+                    example_spikes = batch_spikes[:i + 1, example, :].T
+                    example_output = example_history[:i + 1].view((i + 1, *example_history.size()[-2:])).cpu().numpy()
+                    max_output = np.amax(example_output, axis=0)
+                    spike_indices = [np.where(x)[0] for x in example_spikes]
+                    input_now = input_history[i][example].cpu().numpy()
+                    input_canvas += input_now
+                    # output_now = output_spikes[i][example].cpu().numpy()
+                    # output_canvas += output_now
+
+            animation = camera.animate(interval=100)
+
+            Path(DIR).mkdir(exist_ok=True)
+            path = Path(DIR, f"reconstruction_animation_e{example}_l{layer}.{form}")
+            animation.save(path)
+            print("reconstruction animation saved as", path)
+
+            sample.update(
+                {
+                    f"reconstruction animation example {example} layer {layer}":
+                        wandb.Video(str(path), caption=f"reconstruction animation example {example} layer {layer} ")
+                }
+            )
+
+            plt.close()
+
+    return sample
+
+
+
+class PoissonEncodingSampler(BaseSampler):
+    def __init__(self, **kwargs):
+
+        super().__init__(**kwargs)
+
+    def sample(self, **result):
+
+        sample = dict()
+        try:
+            input_history = result["input_history"]
+            sample.update(
+                plot_poisson_encoding_hist(input_history, self.form)
+            )
+        except:
+            pass
+
+        return sample
+
+def plot_poisson_encoding_hist(input_history, form=""):
+
+    sample = dict()
+
+    t = len(input_history)
+    cum_spikes = np.zeros(input_history[0].size())
+
+    for i in range(t):
+        cum_spikes += input_history[i].cpu().numpy()
+    m = int(max(cum_spikes.flatten()))
+    plt.hist(cum_spikes.flatten() / t, range=(0, 1), density=True, bins=20, align="left")
+    plt.ylim(0, 20)
+    plt.tight_layout()
+
+    if form:
+        Path(DIR).mkdir(exist_ok=True)
+        path = Path(DIR, f"poisson_encoding_hist.{form}")
+        plt.savefig(path, format=form)
+
+    buf = io.BytesIO()
+    plt.savefig(buf, format="png")
+    buf.seek(0)
+    im = Image.open(buf)
+
+    sample.update(
+        {
+            f"poisson encoding hist":
+                wandb.Image(im, caption=f"poisson encoding hist")
+        }
+    )
+
+    buf.close()
+    #plt.show()
+    plt.close()
+
+    return sample
+
 
 class SpikeHistSampler(BaseSampler):
     def __init__(self, ncol=8, layers=[], **kwargs):
@@ -110,7 +507,8 @@ class SpikeHistSampler(BaseSampler):
             spikes = result["total_outs"]
             t = len(result["out_temps"][0])
             sample.update(
-                plot_spike_hist(spikes, layers=self.layers, ncol=self.ncol, t=t)
+                plot_spike_hist(spikes, layers=self.layers, ncol=self.ncol,
+                                t=t, max_samples=self.max_samples, form=self.form)
             )
         except:
             pass
@@ -118,7 +516,7 @@ class SpikeHistSampler(BaseSampler):
         try:
             z = result["latent"]
             sample.update(
-                plot_z_hist(z, ncol=self.ncol)
+                plot_z_hist(z, ncol=self.ncol, max_samples=self.max_samples, form=self.form)
             )
         except:
             pass
@@ -126,7 +524,7 @@ class SpikeHistSampler(BaseSampler):
         return sample
 
 
-def plot_z_hist(z, ncol=8):
+def plot_z_hist(z, ncol=8, max_samples=100, form=""):
 
     sample = dict()
 
@@ -155,6 +553,12 @@ def plot_z_hist(z, ncol=8):
                        labelleft=False, labelbottom=False)
 
     plt.tight_layout()
+
+    if form:
+        Path(DIR).mkdir(exist_ok=True)
+        path = Path(DIR, f"z_example_hist.{form}")
+        plt.savefig(path, format=form)
+
     buf = io.BytesIO()
     plt.savefig(buf, format="png")
     buf.seek(0)
@@ -171,14 +575,16 @@ def plot_z_hist(z, ncol=8):
     #plt.show()
     plt.close()
 
-    ncols = min(n, ncol)
-    nrows = n // ncols + 1
-    if n % ncols == 0:
+    m = n if n < max_samples else max_samples
+
+    ncols = min(m, ncol)
+    nrows = m // ncols + 1
+    if m % ncols == 0:
         nrows -= 1
 
     img = plt.subplots(squeeze=False, sharey=True, sharex=True, figsize=(ncols, nrows * 0.6))
 
-    for i in range(n):
+    for i in range(m):
         neuron_activity = layer_spikes[:, i]
         row = i // ncols
         col = i % ncols
@@ -190,6 +596,12 @@ def plot_z_hist(z, ncol=8):
                        labelleft=False, labelbottom=False)
 
     plt.tight_layout()
+
+    if form:
+        Path(DIR).mkdir(exist_ok=True)
+        path = Path(DIR, f"z_neuron_hist.{form}")
+        plt.savefig(path, format=form)
+
     buf = io.BytesIO()
     plt.savefig(buf, format="png")
     buf.seek(0)
@@ -211,14 +623,41 @@ def plot_z_hist(z, ncol=8):
 
 
 
-def plot_spike_hist(spikes, layers, ncol=8, t=100):
+def plot_spike_hist(spikes, layers, ncol=8, t=100, max_samples=100, form=""):
 
     sample = dict()
 
     for idx in layers:
-        layer_spikes = spikes[idx].cpu().numpy()
-        batch_size = layer_spikes.shape[0]
+        batch_size = spikes[idx].size(0)
+        layer_spikes = spikes[idx].view(batch_size, -1).cpu().numpy()
         n = layer_spikes.shape[1]
+
+        #m = int(max(layer_spikes.flatten()))
+        plt.hist(layer_spikes.flatten() / t, range=(0, 1), density=True, bins=20, align="left")
+        plt.ylim(0, 20)
+        plt.tight_layout()
+
+        if form:
+            Path(DIR).mkdir(exist_ok=True)
+            path = Path(DIR, f"spike_total_hist_l{idx+1}.{form}")
+            plt.savefig(path, format=form)
+
+        buf = io.BytesIO()
+        plt.savefig(buf, format="png")
+        buf.seek(0)
+        im = Image.open(buf)
+
+        sample.update(
+            {
+                f"layer {idx} total hist":
+                    wandb.Image(im, caption=f"layer {idx} total hist")
+            }
+        )
+
+        buf.close()
+        # plt.show()
+        plt.close()
+
 
         ncols = min(batch_size, ncol)
         nrows = batch_size // ncols + 1
@@ -239,6 +678,12 @@ def plot_spike_hist(spikes, layers, ncol=8, t=100):
                            labelleft=False, labelbottom=False)
 
         plt.tight_layout()
+
+        if form:
+            Path(DIR).mkdir(exist_ok=True)
+            path = Path(DIR, f"spike_example_hist_l{idx+1}.{form}")
+            plt.savefig(path, format=form)
+
         buf = io.BytesIO()
         plt.savefig(buf, format="png")
         buf.seek(0)
@@ -254,14 +699,17 @@ def plot_spike_hist(spikes, layers, ncol=8, t=100):
         buf.close()
         plt.close()
 
-        ncols = min(n, ncol)
-        nrows = n // ncols + 1
-        if n % ncols == 0:
+
+        m = n if n < max_samples else max_samples
+
+        ncols = min(m, ncol)
+        nrows = m // ncols + 1
+        if m % ncols == 0:
             nrows -= 1
 
         img = plt.subplots(squeeze=False, sharey=True, sharex=True, figsize=(ncols, nrows*0.6))
 
-        for i in range(n):
+        for i in range(m):
             neuron_spikes = layer_spikes[:, i] / t
             row = i // ncols
             col = i % ncols
@@ -273,6 +721,12 @@ def plot_spike_hist(spikes, layers, ncol=8, t=100):
                               labelleft=False, labelbottom=False)
 
         plt.tight_layout()
+
+        if form:
+            Path(DIR).mkdir(exist_ok=True)
+            path = Path(DIR, f"spike_neuron_hist_l{idx+1}.{form}")
+            plt.savefig(path, format=form)
+
         buf = io.BytesIO()
         plt.savefig(buf, format="png")
         buf.seek(0)
@@ -305,19 +759,19 @@ class FilterSampler(BaseSampler):
         if "input weights" in result.keys():
             w_in = result["input weights"]
             sample.update(
-                    plot_filters(w_in, name="input", nrow=self.nrow)
+                    plot_filters(w_in, name="input", nrow=self.nrow, form=self.form)
             )
 
         if "output weights" in result.keys():
             w_out = result["output weights"]
             sample.update(
-                plot_filters(w_out, name="output", nrow=self.nrow)
+                plot_filters(w_out, name="output", nrow=self.nrow, form=self.form)
             )
 
         return sample
 
 
-def plot_filters(weights, name="input", nrow=8):
+def plot_filters(weights, name="input", nrow=8, form=""):
 
     sample = dict()
 
@@ -327,6 +781,11 @@ def plot_filters(weights, name="input", nrow=8):
     plt.imshow(grid.permute(1, 2, 0))
     plt.axis('off')
     plt.ioff()
+
+    if form:
+        Path(DIR).mkdir(exist_ok=True)
+        path = Path(DIR, f"{name}_filters.{form}")
+        plt.savefig(path, format=form)
 
     sample.update(
         {
@@ -354,11 +813,11 @@ class MatrixSampler(BaseSampler):
         try:
             if "out_temps" in result.keys():
                 sample.update(plot_spiking_activity_matrix(
-                    layers=self.layers,
+                    layers=self.layers, form=self.form,
                     **result
                 ))
             if "latent" in result.keys():
-                sample.update(plot_activity_matrix(
+                sample.update(plot_activity_matrix(form=self.form,
                     **result
                 ))
         except:
@@ -367,11 +826,11 @@ class MatrixSampler(BaseSampler):
         try:
             if "out_temps" in result.keys():
                 sample.update(plot_spiking_example_activity_correlation(
-                    layers=self.layers,
+                    layers=self.layers, form=self.form,
                     **result
                 ))
             if "latent" in result.keys():
-                sample.update(plot_example_activity_correlation(
+                sample.update(plot_example_activity_correlation(form=self.form,
                     **result
                 ))
         except:
@@ -380,12 +839,12 @@ class MatrixSampler(BaseSampler):
         try:
             if "out_temps" in result.keys():
                 sample.update(plot_spiking_neuron_activity_correlation(
-                    layers=self.layers,
+                    layers=self.layers, form=self.form,
                     **result
                 ))
             if "latent" in result.keys():
                 sample.update(plot_neuron_activity_correlation(
-                    **result
+                    form=self.form, **result
                 ))
         except:
             print("plot neuron activity matrix failed")
@@ -393,7 +852,11 @@ class MatrixSampler(BaseSampler):
         return sample
 
 
-def plot_example_activity_correlation(**result):
+def plot_example_activity_correlation(form="", **result):
+
+    if "labels" in result.keys():
+        label = True
+        labels = result["labels"].cpu()
 
     z = result["latent"].detach().cpu().numpy()
     z = z[:, ~np.all(z == 0, axis=0)]  # drops all neurons that have 0 output for all examples (considered dead)
@@ -402,12 +865,33 @@ def plot_example_activity_correlation(**result):
 
     df = pd.DataFrame(z.T)
 
-    img = sns.clustermap(df.corr(), #.dropna(axis=0, how="all").dropna(axis=1, how="all"),
-                         vmin=-1.0,
-                         vmax=1.0,
-                         cmap="RdBu_r",
-                         center=0.0
-                         )
+    if label:
+        label_pal = sns.color_palette("tab10")
+        label_lut = dict(zip(torch.unique(labels).numpy(), label_pal))
+        label_colors = pd.Series(labels.numpy()).map(label_lut)
+        img = sns.clustermap(
+            df.corr(),
+            col_colors=label_colors,
+            xticklabels=labels.numpy(),
+            yticklabels=labels.numpy(),
+            vmin=-1.0,
+            vmax=1.0,
+            cmap="RdBu_r",
+            center=0.0,
+        )
+
+    else:
+        img = sns.clustermap(df.corr(), #.dropna(axis=0, how="all").dropna(axis=1, how="all"),
+                             vmin=-1.0,
+                             vmax=1.0,
+                             cmap="RdBu_r",
+                             center=0.0
+                             )
+
+    if form:
+        Path(DIR).mkdir(exist_ok=True)
+        path = Path(DIR, f"example_activity_corr.{form}")
+        plt.savefig(path, format=form)
 
     sample = dict()
 
@@ -424,7 +908,7 @@ def plot_example_activity_correlation(**result):
     return sample
 
 
-def plot_spiking_example_activity_correlation(layers=[], **result):
+def plot_spiking_example_activity_correlation(layers=[], form="", **result):
 
     #out_spikes = result["out_temps"]
 
@@ -455,7 +939,7 @@ def plot_spiking_example_activity_correlation(layers=[], **result):
         # TODO: check for non-finite values !
 
         if label:
-            label_pal = sns.husl_palette(len(torch.unique(labels)), s=0.45)
+            label_pal = sns.color_palette("tab10")
             label_lut = dict(zip(torch.unique(labels).numpy(), label_pal))
             label_colors = pd.Series(labels.numpy()).map(label_lut)
             img = sns.clustermap(
@@ -472,6 +956,11 @@ def plot_spiking_example_activity_correlation(layers=[], **result):
         else:
             img = sns.clustermap(df.corr(), vmin=-1.0, vmax=1.0, cmap="RdBu_r", center=0.0)
 
+        if form:
+            Path(DIR).mkdir(exist_ok=True)
+            path = Path(DIR, f"spiking_example_activity_corr_l{idx+1}.{form}")
+            plt.savefig(path, format=form)
+
         sample.update(
             {
                 f"example activity correlation layer {idx + 1}":
@@ -485,7 +974,7 @@ def plot_spiking_example_activity_correlation(layers=[], **result):
     return sample
 
 
-def plot_neuron_activity_correlation(**result):
+def plot_neuron_activity_correlation(form="", **result):
 
     z = result["latent"].detach().cpu().numpy()
     z = z[:, ~np.all(z == 0, axis=0)]  # drops all neurons that have 0 output for all examples (considered dead)
@@ -503,6 +992,11 @@ def plot_neuron_activity_correlation(**result):
                          center=0.0
                          )
 
+    if form:
+        Path(DIR).mkdir(exist_ok=True)
+        path = Path(DIR, f"neuron_activity_corr.{form}")
+        plt.savefig(path, format=form)
+
     sample.update(
         {
             "neuron activity correlation z":
@@ -516,7 +1010,7 @@ def plot_neuron_activity_correlation(**result):
     return sample
 
 
-def plot_spiking_neuron_activity_correlation(layers=[], **result):
+def plot_spiking_neuron_activity_correlation(layers=[], form="", **result):
     #out_spikes = result["out_temps"]
 
     sample = dict()
@@ -545,6 +1039,11 @@ def plot_spiking_neuron_activity_correlation(layers=[], **result):
                              center=0.0
                              )
 
+        if form:
+            Path(DIR).mkdir(exist_ok=True)
+            path = Path(DIR, f"spiking_neuron_activity_corr_l{idx+1}.{form}")
+            plt.savefig(path, format=form)
+
         sample.update(
             {
                 f"neuron activity correlation layer {idx + 1}":
@@ -558,7 +1057,7 @@ def plot_spiking_neuron_activity_correlation(layers=[], **result):
     return sample
 
 
-def plot_spiking_activity_matrix(layers=[], **result):
+def plot_spiking_activity_matrix(layers=[], form="", **result):
 
     out_spikes = result["out_temps"]
 
@@ -581,7 +1080,7 @@ def plot_spiking_activity_matrix(layers=[], **result):
         df = pd.DataFrame(mean_batch_spikes.T.numpy())
 
         if label:
-            label_pal = sns.husl_palette(len(torch.unique(labels)), s=0.45)
+            label_pal = sns.color_palette("tab10") #sns.husl_palette(len(torch.unique(labels)), s=0.45)
             label_lut = dict(zip(torch.unique(labels).numpy(), label_pal))
             label_colors = pd.Series(labels.numpy()).map(label_lut)
             img = sns.clustermap(
@@ -597,6 +1096,13 @@ def plot_spiking_activity_matrix(layers=[], **result):
         else:
             img = sns.clustermap(df, vmin=0.0, vmax=1.0, cmap="RdBu_r", center=0.0)
 
+        plt.setp(img.ax_heatmap.xaxis.get_majorticklabels(), rotation=0)
+
+        if form:
+            Path(DIR).mkdir(exist_ok=True)
+            path = Path(DIR, f"spiking_activity_matrix_l{idx+1}.{form}")
+            plt.savefig(path, format=form)
+
         sample.update(
             {
                 f"activity matrix layer {idx + 1}":
@@ -610,7 +1116,7 @@ def plot_spiking_activity_matrix(layers=[], **result):
     return sample
 
 
-def plot_activity_matrix(**result):
+def plot_activity_matrix(form="", **result):
 
     z = result["latent"].T.cpu().numpy()
 
@@ -626,7 +1132,7 @@ def plot_activity_matrix(**result):
 
     if "labels" in result.keys():
         labels = result["labels"].cpu()
-        label_pal = sns.husl_palette(len(torch.unique(labels)), s=0.45)
+        label_pal = sns.color_palette("tab10")
         label_lut = dict(zip(torch.unique(labels).numpy(), label_pal))
         label_colors = pd.Series(labels.numpy()).map(label_lut)
         img = sns.clustermap(
@@ -639,6 +1145,13 @@ def plot_activity_matrix(**result):
 
     else:
         img = sns.clustermap(df)
+
+    plt.setp(img.ax_heatmap.xaxis.get_majorticklabels(), rotation=0)
+
+    if form:
+        Path(DIR).mkdir(exist_ok=True)
+        path = Path(DIR, f"activity_matrix.{form}")
+        plt.savefig(path, format=form)
 
     sample.update(
         {
@@ -669,6 +1182,7 @@ class SpikeSampler(BaseSampler):
                     layers=self.layers,
                     max_samples=self.max_samples,
                     small=True,
+                    form=self.form,
                     **result,
                 )
             )
@@ -678,6 +1192,7 @@ class SpikeSampler(BaseSampler):
                     layers=self.layers,
                     max_samples=self.max_samples,
                     small=False,
+                    form=self.form,
                     **result,
                 )
             )
@@ -685,7 +1200,7 @@ class SpikeSampler(BaseSampler):
         return sample
 
 
-def plot_output_spikes(layers=[], max_samples=20, small=True, **result):
+def plot_output_spikes(layers=[], max_samples=20, small=True, form="", **result):
     """
 
     :param result:
@@ -724,6 +1239,13 @@ def plot_output_spikes(layers=[], max_samples=20, small=True, **result):
                 ax.axes.yaxis.set_visible(False)
                 flag = "small "
             # #plt.show()
+
+            if form:
+                Path(DIR).mkdir(exist_ok=True)
+                s = "s_" if small else ""
+                path = Path(DIR, f"output_spikes_{s}e{example+1}_l{idx+1}.{form}")
+                plt.savefig(path, format=form)
+
             images.append(fig)
             plt.close()
 
@@ -740,22 +1262,27 @@ def plot_output_spikes(layers=[], max_samples=20, small=True, **result):
 
 
 class ReconstructionSampler(BaseSampler):
-    def __init__(self, cbar=True, **kwargs):
+    def __init__(self, cbar=True, vmin=0.0, vmax=1.0, scale=1.0, **kwargs):
 
         self.cbar = cbar
+        self.vmin = vmin
+        self.vmax = vmax
+        self.scale = scale
         super().__init__(**kwargs)
 
     def sample(self, **result):
 
         sample = dict()
         sample.update(
-            plot_reconstruction(cbar=self.cbar, max_samples=self.max_samples, **result)
+            plot_reconstruction(cbar=self.cbar, max_samples=self.max_samples,
+                                form=self.form, vmin=self.vmin, vmax=self.vmax,
+                                scale=self.scale, **result)
         )
 
         return sample
 
 
-def plot_reconstruction(cbar=True, max_samples=20, **result):
+def plot_reconstruction(cbar=True, max_samples=20, form="", vmin=None, vmax=None, scale=1.0, **result):
     """
 
     """
@@ -773,22 +1300,38 @@ def plot_reconstruction(cbar=True, max_samples=20, **result):
         for frame in input_history:
             encoded_inputs += frame.cpu()
 
+        encoded_inputs = torch.div(encoded_inputs, len(input_history) * scale)
+
     batch_size = inputs.shape[0]
 
     for example in range(min([batch_size, max_samples])):
 
         # plot input
-        fig = tensor_to_greyscale(inputs[example])
+        fig = tensor_to_greyscale(inputs[example], cbar=cbar, vmin=vmin, vmax=vmax)
+        if form:
+            Path(DIR).mkdir(exist_ok=True)
+            path = Path(DIR, f"original_e{example+1}.{form}")
+            print(f"saving input as {path}")
+            plt.savefig(path, format=form)
         originals.append(fig)
+        plt.close()
 
         # plot encoding
         if "input_history" in result.keys():
-            fig = tensor_to_greyscale(encoded_inputs[example], cbar=cbar)
+            fig = tensor_to_greyscale(encoded_inputs[example], cbar=cbar, vmin=vmin, vmax=vmax)
+            if form:
+                path = Path(DIR, f"encoding_e{example+1}.{form}")
+                plt.savefig(path, format=form)
             encodings.append(fig)
+            plt.close()
 
         # plot reconstruction
-        fig = tensor_to_greyscale(outputs[example], cbar=cbar)
+        fig = tensor_to_greyscale(outputs[example], cbar=cbar, vmin=vmin, vmax=vmax)
+        if form:
+            path = Path(DIR, f"reconstruction_e{example+1}.{form}")
+            plt.savefig(path, format=form)
         reconstructions.append(fig)
+        plt.close()
 
     sample = dict(
         original=[
@@ -817,7 +1360,7 @@ def tensor_to_greyscale(tensor, cbar=True, vmin=None, vmax=None):
 
     fig = plt.figure(figsize=(2.5 if cbar else 2, 2))
     ax = fig.add_subplot(111)
-    cax = ax.matshow(tensor[0], interpolation="nearest", vmin=vmin, vmax=vmax)
+    cax = ax.matshow(tensor[0], interpolation="none", vmin=vmin, vmax=vmax)
 
     if cbar:
         fig.colorbar(cax)
@@ -825,7 +1368,6 @@ def tensor_to_greyscale(tensor, cbar=True, vmin=None, vmax=None):
     ax.axes.xaxis.set_visible(False)
     ax.axes.yaxis.set_visible(False)
     plt.tight_layout()
-    plt.close()
 
     return fig
 
@@ -842,20 +1384,20 @@ class PotentialSampler(BaseSampler):
         sample = dict()
         sample.update(
             plot_output_potential(
-                layers=self.layers, max_samples=self.max_samples, **result
+                layers=self.layers, max_samples=self.max_samples, form=self.form, **result
             )
         )
         if self.cumulative:
             sample.update(
                 plot_cummulative_potential(
-                    layers=self.layers, max_samples=self.max_samples, **result
+                    layers=self.layers, max_samples=self.max_samples, form=self.form, **result
                 )
             )
 
         return sample
 
 
-def plot_output_potential(layers=[], max_samples=20, **result):
+def plot_output_potential(layers=[], max_samples=20, form="", **result):
     """
 
     :param result:
@@ -883,6 +1425,12 @@ def plot_output_potential(layers=[], max_samples=20, **result):
             plt.ylabel("Membrane Potential")
             plt.title("Membrane Potential History")
             images.append(fig)
+
+            if form:
+                Path(DIR).mkdir(exist_ok=True)
+                path = Path(DIR, f"output_potential_e{example+1}_l{idx+1}.{form}")
+                plt.savefig(path, format=form)
+
             plt.close()
 
         sample.update(
@@ -897,7 +1445,7 @@ def plot_output_potential(layers=[], max_samples=20, **result):
     return sample
 
 
-def plot_cummulative_potential(layers=[], max_samples=20, **result):
+def plot_cummulative_potential(layers=[], max_samples=20, form="", **result):
     """
 
     :param result:
@@ -925,6 +1473,12 @@ def plot_cummulative_potential(layers=[], max_samples=20, **result):
             plt.ylabel("Membrane Potential")
             plt.title("Cummulative Membrane Potential History")
             images.append(fig)
+
+            if form:
+                Path(DIR).mkdir(exist_ok=True)
+                path = Path(DIR, f"cum_potential_e{example+1}_l{idx+1}.{form}")
+                plt.savefig(path, format=form)
+
             plt.close()
 
         sample.update(

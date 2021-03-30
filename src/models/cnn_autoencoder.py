@@ -282,6 +282,10 @@ class CNNAutoencoderModel(nn.Module):
         z = self.encode(x_)
         y = self.decode(z)
 
+        print(torch.max(x))
+        print(torch.max(x_))
+        print(torch.max(y))
+
         #print(z.sum())
         result = dict(
             input=x,

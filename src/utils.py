@@ -131,7 +131,7 @@ def get_argparser(description="", verbose=True):
     parser.add_argument(
         "--decay",
         type=float,
-        default=0.95,
+        default=0.99,
         help="temporal decay variable for LIF neurons (default: 0.99)",
     )
     parser.add_argument(
