@@ -26,8 +26,10 @@ This is my thesis project for the MSc. Artificial Intelligence program at Vrije 
 ## Example
 
 
-<img src="https://github.com/jhuebotter/SpikingVAE/demo1.gif" alt="Image reconstruction example" title="Image reconstruction example" width="500"/>
-<img src="https://github.com/jhuebotter/SpikingVAE/demo2.gif" alt="Image reconstruction example" title="Image reconstruction example" width="500"/>
+<img src="https://github.com/jhuebotter/SpikingVAE/blob/master/methods.png" alt="Image reconstruction example" title="Image reconstruction example" width="500"/>
+<video src="https://github.com/jhuebotter/SpikingVAE/blob/master/SAE_dense_reconstruction.mp4" alt="Image reconstruction example" title="Image reconstruction example" width="500"/>
+<video src="https://github.com/jhuebotter/SpikingVAE/blob/master/SAE_dense_reconstruction_noise.mp4" alt="Image reconstruction example" title="Image reconstruction example" width="500"/>
+
 
 ## Features
 
