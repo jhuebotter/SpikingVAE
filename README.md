@@ -1,3 +1,5 @@
+
+
 <p>
 <img src="https://img.shields.io/badge/licence-MIT-green">
 <img src="https://img.shields.io/badge/dependencies-up%20to%20date-brightgreen">
@@ -27,6 +29,12 @@ This is my thesis project for the MSc. Artificial Intelligence program at Vrije 
 
 
 <img src="https://github.com/jhuebotter/SpikingVAE/blob/master/methods.png" alt="Image reconstruction example" title="Image reconstruction example" width="500"/>
+
+https://user-images.githubusercontent.com/23056552/113072676-f29fa400-91c7-11eb-869d-ce7da24b5722.mp4
+
+
+https://user-images.githubusercontent.com/23056552/113072678-f3383a80-91c7-11eb-8dba-b75466d9c875.mp4
+
 <video src="https://github.com/jhuebotter/SpikingVAE/blob/master/SAE_dense_reconstruction.mp4" alt="Image reconstruction example" title="Image reconstruction example" width="500"/>
 <video src="https://github.com/jhuebotter/SpikingVAE/blob/master/SAE_dense_reconstruction_noise.mp4" alt="Image reconstruction example" title="Image reconstruction example" width="500"/>
 
