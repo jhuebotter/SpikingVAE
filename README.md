@@ -34,7 +34,7 @@ The regularized spiking autoencoder model encodes to and decodes from a spiking 
 
 <img src="https://github.com/jhuebotter/SpikingVAE/blob/master/SAE_dense_reconstruction.gif" alt="Image reconstruction example" title="Image reconstruction example" width="900"/>
 
-Spiking model performs the task well with salt & pepper noise.
+Spiking model performs the iamge reconstruction task well under the influence of noisey inputs.
 
 <img src="https://github.com/jhuebotter/SpikingVAE/blob/master/SAE_dense_reconstruction_noise.gif" alt="Image reconstruction example" title="Image reconstruction example" width="900"/>
 
