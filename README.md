@@ -1,3 +1,5 @@
+
+
 <p>
 <img src="https://img.shields.io/badge/licence-MIT-green">
 <img src="https://img.shields.io/badge/dependencies-up%20to%20date-brightgreen">
@@ -9,33 +11,45 @@
 ## Table of content
 - [Description](#description)
 - [Author](#author)
+- [Example](#example)
 - [Features](#features)
 - [Results](#results)
 - [Usage](#usage)
-- [References](#references)
-- [Acknowledgements](#acknowledgements)
 - [License](#license)
 
 ## Description 
 
-Thesis project for MSc. Artificial Intelligence at Vrije Universiteit Amsterdam. My aim is to implement a variational autoencoder with spiking neurons in in [PyTorch](https://github.com/pytorch/pytorch).
+This is my thesis project for the MSc. Artificial Intelligence program at Vrije Universiteit Amsterdam. My aim is to implement an autoencoder network with spiking neurons in [PyTorch](https://github.com/pytorch/pytorch). 
 
 ## Author
 
 [Justus F. Hübotter](https://www.huebotter.net)
 
+## Example
+
+
+<img src="https://github.com/jhuebotter/SpikingVAE/blob/master/methods.png" alt="Image reconstruction example" title="Image reconstruction example" width="500"/>
+
+The regularized spiking autoencoder model encodes to and decodes from a spiking latent representation.
+
+<img src="https://github.com/jhuebotter/SpikingVAE/blob/master/SAE_dense_reconstruction.gif" alt="Image reconstruction example" title="Image reconstruction example" width="900"/>
+
+Spiking model performs the iamge reconstruction task well under the influence of noisey inputs.
+
+<img src="https://github.com/jhuebotter/SpikingVAE/blob/master/SAE_dense_reconstruction_noise.gif" alt="Image reconstruction example" title="Image reconstruction example" width="900"/>
+
+
 ## Features
 
 * [x] CPU/GPU support
-* [ ] Distributed processing support
 
 * [x] TensorBoard real-time monitoring
 * [x] Weights and Biases logging
-* [ ] Custom loss functions
+* [x] Custom loss functions
 * [x] Custom metrics 
 * [x] Best and last model weights automatically saved
 * [ ] Pretrained weights available
-* [ ] Reconstruction & representation plotting
+* [x] Reconstruction & representation plotting
 * [ ] Dataset preprocessing options
 * [x] Fully commented and documented
 
@@ -44,27 +58,26 @@ Thesis project for MSc. Artificial Intelligence at Vrije Universiteit Amsterdam.
 * [ ] CelebA dataset
 * [ ] Bouncing balls dataset
 * [ ] Moving MNIST dataset
+* [x] Image-to-spike encoding (rate and time code)
 
-* [x] Fully parameterized models
-* [x] Fully connected classifier network
-* [x] Convolutional classifier network 
-* [x] Spiking convolutional classifier network
+* [x] Fully parameterized model architectuce
+* [x] Fully connected classifier
+* [x] Convolutional classifier 
+* [x] Fully connected spiking classifier
+* [x] Spiking convolutional classifier 
 * [x] Fully connected autoencoder
 * [x] Convolutional autoencoder
-* [x] Spiking convolutional autoencoder
-* [ ] Fully connected variational autoencoder
-* [ ] Convolutional variational autoencoder
-* [ ] Fully connected spiking autoencoder
-* [ ] Convolutional spiking autoencoder
-* [ ] Fully connected spiking variational autoencoder
-* [ ] Convolutional spiking variational autoencoder
+* [x] Fully connected variational autoencoder
+* [x] Convolutional variational autoencoder
+* [x] Fully connected spiking autoencoder
+* [x] Convolutional spiking autoencoder
 
 * [ ] ...
 
 
 ## Results
 
-Tests are done on Ubuntu 18.04 with 16 GB RAM, Ryzen 5 3600, nVidia RTX 2070.
+Development and Testing are done on Ubuntu 18.04 with 16 GB RAM, Ryzen 5 3600, nVidia RTX 2070.
 
 ## Usage
 
@@ -106,6 +119,7 @@ It will download and store the datasets locally in the **data** folder.
 
 ### Pretrained Models
 
+Are not yet available here.
 
 ### Train Models 
 
@@ -125,21 +139,6 @@ To visualize training results in TensorBoard, we can use the following command f
 ```bash
 $ tensorboard --logdir='results/logs'
 ```
-
-
-## References
-
-Related Papers:
-- [Variational Sparse Coding](https://openreview.net/pdf?id=SkeJ6iR9Km)
-- [Auto-Encoding Variational Bayes](https://arxiv.org/pdf/1312.6114.pdf)
-- [Large-Scale Feature Learning With Spike-and-Slab Sparse Coding](https://arxiv.org/pdf/1206.6407.pdf)
-- [Stick-Breaking Variational Autoencoders](https://arxiv.org/pdf/1605.06197.pdf)
-- [beta-VAE: Learning Basic Visual Concepts with a Constrained Variational Framework](https://openreview.net/pdf?id=Sy2fzU9gl)
-- [Disentangling by Factorising](https://arxiv.org/pdf/1802.05983.pdf)
-- [Neural Discrete Representation Learning](https://papers.nips.cc/paper/7210-neural-discrete-representation-learning.pdf)
-- [Tutorial on Variational Autoencoders](https://arxiv.org/pdf/1606.05908.pdf)
-
-## Acknowledgements 
 
 ## License
 
