@@ -332,7 +332,7 @@ class ReconstructionAnimationSampler(BaseSampler):
         return sample
 
 
-def reconstruction_animation(input_history, target, out_spikes, output_potential_history, layers=[], form="gif", cbar=True):
+def reconstruction_animation(input_history, target, out_spikes, output_potential_history, layers=[], form="gif", cbar=True, fz=15):
 
     sample = dict()
 
@@ -348,10 +348,11 @@ def reconstruction_animation(input_history, target, out_spikes, output_potential
         batch_spikes = (
             torch.stack(layer_spikes).detach().cpu().view(t, batch_size, neurons)
         )
-        output_spikes = out_spikes[-1]
+        #output_spikes = out_spikes[-1]
 
+        n = min(batch_size, MAX_SAMPLES)
 
-        for example in [0]:
+        for example in range(n):
 
             example_history = output_history[:, example]
 
@@ -375,22 +376,22 @@ def reconstruction_animation(input_history, target, out_spikes, output_potential
                 #fig.suptitle(f"t = {i}", fontsize=16)
 
                 im0 = axs[0].matshow(example_target, interpolation="nearest", vmin=0, vmax=1)
-                axs[0].set_title("Original")
+                axs[0].set_title("Original", fontsize=fz)
                 fig.colorbar(im0, cax=caxs[0])
 
                 im1 = axs[1].matshow(np.squeeze(input_now), interpolation="nearest", vmin=0, vmax=1)
-                axs[1].set_title("Network input at t")
+                axs[1].set_title("Network input at t", fontsize=fz)
                 fig.colorbar(im1, cax=caxs[1])
 
                 im2 = axs[2].matshow(np.squeeze(input_canvas), interpolation="nearest", vmin=0, vmax=vmax)
-                axs[2].set_title("Summed input until t")
+                axs[2].set_title("Summed input until t", fontsize=fz)
                 fig.colorbar(im2, cax=caxs[2])
 
                 axs[3].eventplot(spike_indices, colors="black")
-                axs[3].set_title("Spiking latent representation")
+                axs[3].set_title("Spiking latent representation", fontsize=fz)
 
                 im4 = axs[4].matshow(np.squeeze(max_output), interpolation="nearest", vmin=0, vmax=vmax)
-                axs[4].set_title("Network output potential")
+                axs[4].set_title("Network output potential", fontsize=fz)
                 fig.colorbar(im4, cax=caxs[3])
 
                 #im5 = axs[5].matshow(np.squeeze(output_canvas), interpolation="nearest", vmin=0, vmax=vmax)

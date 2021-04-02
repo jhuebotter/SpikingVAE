@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 
 np.set_printoptions(threshold=np.inf)
 
@@ -136,6 +137,16 @@ def spike_density(**result):
     return density
 
 
+def encoding_density(**result):
+    if "input_history" in result.keys():
+        stacked_history = torch.stack(result["input_history"]).cpu().numpy()
+        density = np.mean(stacked_history)
+    else:
+        density = np.nan
+
+    return density
+
+
 def get_metrics(metric_names):
     metrics = dict()
 
@@ -154,8 +165,11 @@ def get_metrics(metric_names):
         metrics.update({"latent pct active": pct_active})
     if "pctactiveperexample" in metric_names:
         metrics.update({"latent pct active per example": pct_active_per_example})
+    if "encoding_density" in metric_names:
+        metrics.update({"encoding density": encoding_density})
 
     return metrics
+
 
 
 metrics = {"accuracy": accuracy}
