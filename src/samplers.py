@@ -217,7 +217,7 @@ def pca_z_plot(z, labels, form="", three_d=True):
         sns.scatterplot(data=pca_df, x="principal component 1", y="principal component 2", hue="label", palette="tab10")
 
     if form:
-        Path(DIR).mkdir(exist_ok=True)
+        Path(DIR).mkdir(parents=True, exist_ok=True)
         path = Path(DIR, f"representation_PCA_layer_{dim}.{form}")
         plt.savefig(path, format=form)
 
@@ -284,7 +284,7 @@ def pca_spike_plot(out_spikes, labels, layers=[], form="", three_d=True):
             sns.scatterplot(data=pca_df, x="principal component 1", y="principal component 2", hue="label", palette="tab10")
 
         if form:
-            Path(DIR).mkdir(exist_ok=True)
+            Path(DIR).mkdir(parents=True, exist_ok=True)
             path = Path(DIR, f"representation_PCA_layer_{idx}_{dim}.{form}")
             plt.savefig(path, format=form)
 
@@ -419,7 +419,7 @@ def reconstruction_animation(input_history, target, out_spikes, output_potential
 
             animation = camera.animate(interval=100)
 
-            Path(DIR).mkdir(exist_ok=True)
+            Path(DIR).mkdir(parents=True, exist_ok=True)
             path = Path(DIR, f"reconstruction_animation_e{example}_l{layer}.{form}")
             animation.save(path)
             print("reconstruction animation saved as", path)
@@ -470,7 +470,7 @@ def plot_poisson_encoding_hist(input_history, form=""):
     plt.tight_layout()
 
     if form:
-        Path(DIR).mkdir(exist_ok=True)
+        Path(DIR).mkdir(parents=True, exist_ok=True)
         path = Path(DIR, f"poisson_encoding_hist.{form}")
         plt.savefig(path, format=form)
 
@@ -556,7 +556,7 @@ def plot_z_hist(z, ncol=8, max_samples=100, form=""):
     plt.tight_layout()
 
     if form:
-        Path(DIR).mkdir(exist_ok=True)
+        Path(DIR).mkdir(parents=True, exist_ok=True)
         path = Path(DIR, f"z_example_hist.{form}")
         plt.savefig(path, format=form)
 
@@ -599,7 +599,7 @@ def plot_z_hist(z, ncol=8, max_samples=100, form=""):
     plt.tight_layout()
 
     if form:
-        Path(DIR).mkdir(exist_ok=True)
+        Path(DIR).mkdir(parents=True, exist_ok=True)
         path = Path(DIR, f"z_neuron_hist.{form}")
         plt.savefig(path, format=form)
 
@@ -639,7 +639,7 @@ def plot_spike_hist(spikes, layers, ncol=8, t=100, max_samples=100, form=""):
         plt.tight_layout()
 
         if form:
-            Path(DIR).mkdir(exist_ok=True)
+            Path(DIR).mkdir(parents=True, exist_ok=True)
             path = Path(DIR, f"spike_total_hist_l{idx+1}.{form}")
             plt.savefig(path, format=form)
 
@@ -681,7 +681,7 @@ def plot_spike_hist(spikes, layers, ncol=8, t=100, max_samples=100, form=""):
         plt.tight_layout()
 
         if form:
-            Path(DIR).mkdir(exist_ok=True)
+            Path(DIR).mkdir(parents=True, exist_ok=True)
             path = Path(DIR, f"spike_example_hist_l{idx+1}.{form}")
             plt.savefig(path, format=form)
 
@@ -724,7 +724,7 @@ def plot_spike_hist(spikes, layers, ncol=8, t=100, max_samples=100, form=""):
         plt.tight_layout()
 
         if form:
-            Path(DIR).mkdir(exist_ok=True)
+            Path(DIR).mkdir(parents=True, exist_ok=True)
             path = Path(DIR, f"spike_neuron_hist_l{idx+1}.{form}")
             plt.savefig(path, format=form)
 
@@ -784,7 +784,7 @@ def plot_filters(weights, name="input", nrow=8, form=""):
     plt.ioff()
 
     if form:
-        Path(DIR).mkdir(exist_ok=True)
+        Path(DIR).mkdir(parents=True, exist_ok=True)
         path = Path(DIR, f"{name}_filters.{form}")
         plt.savefig(path, format=form)
 
@@ -890,7 +890,7 @@ def plot_example_activity_correlation(form="", **result):
                              )
 
     if form:
-        Path(DIR).mkdir(exist_ok=True)
+        Path(DIR).mkdir(parents=True, exist_ok=True)
         path = Path(DIR, f"example_activity_corr.{form}")
         plt.savefig(path, format=form)
 
@@ -958,7 +958,7 @@ def plot_spiking_example_activity_correlation(layers=[], form="", **result):
             img = sns.clustermap(df.corr(), vmin=-1.0, vmax=1.0, cmap="RdBu_r", center=0.0)
 
         if form:
-            Path(DIR).mkdir(exist_ok=True)
+            Path(DIR).mkdir(parents=True, exist_ok=True)
             path = Path(DIR, f"spiking_example_activity_corr_l{idx+1}.{form}")
             plt.savefig(path, format=form)
 
@@ -994,7 +994,7 @@ def plot_neuron_activity_correlation(form="", **result):
                          )
 
     if form:
-        Path(DIR).mkdir(exist_ok=True)
+        Path(DIR).mkdir(parents=True, exist_ok=True)
         path = Path(DIR, f"neuron_activity_corr.{form}")
         plt.savefig(path, format=form)
 
@@ -1041,7 +1041,7 @@ def plot_spiking_neuron_activity_correlation(layers=[], form="", **result):
                              )
 
         if form:
-            Path(DIR).mkdir(exist_ok=True)
+            Path(DIR).mkdir(parents=True, exist_ok=True)
             path = Path(DIR, f"spiking_neuron_activity_corr_l{idx+1}.{form}")
             plt.savefig(path, format=form)
 
@@ -1100,7 +1100,7 @@ def plot_spiking_activity_matrix(layers=[], form="", **result):
         plt.setp(img.ax_heatmap.xaxis.get_majorticklabels(), rotation=0)
 
         if form:
-            Path(DIR).mkdir(exist_ok=True)
+            Path(DIR).mkdir(parents=True, exist_ok=True)
             path = Path(DIR, f"spiking_activity_matrix_l{idx+1}.{form}")
             plt.savefig(path, format=form)
 
@@ -1150,7 +1150,7 @@ def plot_activity_matrix(form="", **result):
     plt.setp(img.ax_heatmap.xaxis.get_majorticklabels(), rotation=0)
 
     if form:
-        Path(DIR).mkdir(exist_ok=True)
+        Path(DIR).mkdir(parents=True, exist_ok=True)
         path = Path(DIR, f"activity_matrix.{form}")
         plt.savefig(path, format=form)
 
@@ -1242,7 +1242,7 @@ def plot_output_spikes(layers=[], max_samples=20, small=True, form="", **result)
             # #plt.show()
 
             if form:
-                Path(DIR).mkdir(exist_ok=True)
+                Path(DIR).mkdir(parents=True, exist_ok=True)
                 s = "s_" if small else ""
                 path = Path(DIR, f"output_spikes_{s}e{example+1}_l{idx+1}.{form}")
                 plt.savefig(path, format=form)
@@ -1310,7 +1310,7 @@ def plot_reconstruction(cbar=True, max_samples=20, form="", vmin=None, vmax=None
         # plot input
         fig = tensor_to_greyscale(inputs[example], cbar=cbar, vmin=vmin, vmax=vmax)
         if form:
-            Path(DIR).mkdir(exist_ok=True)
+            Path(DIR).mkdir(parents=True, exist_ok=True)
             path = Path(DIR, f"original_e{example+1}.{form}")
             print(f"saving input as {path}")
             plt.savefig(path, format=form)
@@ -1428,7 +1428,7 @@ def plot_output_potential(layers=[], max_samples=20, form="", **result):
             images.append(fig)
 
             if form:
-                Path(DIR).mkdir(exist_ok=True)
+                Path(DIR).mkdir(parents=True, exist_ok=True)
                 path = Path(DIR, f"output_potential_e{example+1}_l{idx+1}.{form}")
                 plt.savefig(path, format=form)
 
@@ -1476,7 +1476,7 @@ def plot_cummulative_potential(layers=[], max_samples=20, form="", **result):
             images.append(fig)
 
             if form:
-                Path(DIR).mkdir(exist_ok=True)
+                Path(DIR).mkdir(parents=True, exist_ok=True)
                 path = Path(DIR, f"cum_potential_e{example+1}_l{idx+1}.{form}")
                 plt.savefig(path, format=form)
 
