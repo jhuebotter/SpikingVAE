@@ -19,36 +19,23 @@
 
 ## Description 
 
-This is my thesis project for the MSc. Artificial Intelligence program at Vrije Universiteit Amsterdam. My aim is to implement an autoencoder network with spiking neurons in [PyTorch](https://github.com/pytorch/pytorch). 
+This is my thesis project for the MSc. Artificial Intelligence program at Vrije Universiteit Amsterdam. I implemented an autoencoder network with spiking neurons in [PyTorch](https://github.com/pytorch/pytorch). 
 
 ## Author
 
-[Justus F. Hübotter](https://www.huebotter.net)
+Justus F. Hübotter
 
 ## Example
-
 
 <img src="https://github.com/jhuebotter/SpikingVAE/blob/master/methods.png" alt="Image reconstruction example" title="Image reconstruction example" width="500"/>
 
 The regularized spiking autoencoder model encodes to and decodes from a spiking latent representation.
 
-<img src="https://github.com/jhuebotter/SpikingVAE/blob/master/SAE_dense_reconstruction.gif" alt="Image reconstruction example" title="Image reconstruction example" width="300"/><img src="https://github.com/jhuebotter/SpikingVAE/blob/master/SAE_dense_reconstruction.gif" alt="Image reconstruction example" title="Image reconstruction example" width="300"/><img src="https://github.com/jhuebotter/SpikingVAE/blob/master/SAE_dense_reconstruction.gif" alt="Image reconstruction example" title="Image reconstruction example" width="300"/>
-
-<img src="https://github.com/jhuebotter/SpikingVAE/blob/master/SAE_dense_reconstruction.gif" alt="Image reconstruction example" title="Image reconstruction example" width="300"/><img src="https://github.com/jhuebotter/SpikingVAE/blob/master/SAE_dense_reconstruction.gif" alt="Image reconstruction example" title="Image reconstruction example" width="300"/><img src="https://github.com/jhuebotter/SpikingVAE/blob/master/SAE_dense_reconstruction.gif" alt="Image reconstruction example" title="Image reconstruction example" width="300"/>
-
-<img src="https://github.com/jhuebotter/SpikingVAE/blob/master/SAE_dense_reconstruction.gif" alt="Image reconstruction example" title="Image reconstruction example" width="300"/><img src="https://github.com/jhuebotter/SpikingVAE/blob/master/SAE_dense_reconstruction.gif" alt="Image reconstruction example" title="Image reconstruction example" width="300"/><img src="https://github.com/jhuebotter/SpikingVAE/blob/master/SAE_dense_reconstruction.gif" alt="Image reconstruction example" title="Image reconstruction example" width="300"/>
+<img src="https://github.com/jhuebotter/SpikingVAE/blob/master/SAE_dense_reconstruction.gif" alt="Image reconstruction example" title="Image reconstruction example" width="900"/>
 
 Spiking model performs the iamge reconstruction task well under the influence of noisey inputs.
 
-<img src="https://github.com/jhuebotter/SpikingVAE/blob/master/SAE_dense_reconstruction_noise.gif" alt="Image reconstruction example" title="Image reconstruction example" width="300"/><img src="https://github.com/jhuebotter/SpikingVAE/blob/master/SAE_dense_reconstruction_noise.gif" alt="Image reconstruction example" title="Image reconstruction example" width="300"/>
-<img src="https://github.com/jhuebotter/SpikingVAE/blob/master/SAE_dense_reconstruction_noise.gif" alt="Image reconstruction example" title="Image reconstruction example" width="300"/>
-
-<img src="https://github.com/jhuebotter/SpikingVAE/blob/master/SAE_dense_reconstruction_noise.gif" alt="Image reconstruction example" title="Image reconstruction example" width="300"/><img src="https://github.com/jhuebotter/SpikingVAE/blob/master/SAE_dense_reconstruction_noise.gif" alt="Image reconstruction example" title="Image reconstruction example" width="300"/>
-<img src="https://github.com/jhuebotter/SpikingVAE/blob/master/SAE_dense_reconstruction_noise.gif" alt="Image reconstruction example" title="Image reconstruction example" width="300"/>
-
-<img src="https://github.com/jhuebotter/SpikingVAE/blob/master/SAE_dense_reconstruction_noise.gif" alt="Image reconstruction example" title="Image reconstruction example" width="300"/><img src="https://github.com/jhuebotter/SpikingVAE/blob/master/SAE_dense_reconstruction_noise.gif" alt="Image reconstruction example" title="Image reconstruction example" width="300"/>
-<img src="https://github.com/jhuebotter/SpikingVAE/blob/master/SAE_dense_reconstruction_noise.gif" alt="Image reconstruction example" title="Image reconstruction example" width="300"/>
-
+<img src="https://github.com/jhuebotter/SpikingVAE/blob/master/SAE_dense_reconstruction_noise.gif" alt="Image reconstruction example" title="Image reconstruction example" width="900"/>
 
 
 ## Features
@@ -83,8 +70,6 @@ Spiking model performs the iamge reconstruction task well under the influence of
 * [x] Convolutional variational autoencoder
 * [x] Fully connected spiking autoencoder
 * [x] Convolutional spiking autoencoder
-
-* [ ] ...
 
 
 ## Results
@@ -144,12 +129,6 @@ For example
 
 ```bash
 $ python train_cnn.py --dataset mnist --epochs 10 --report-interval 1 --lr 0.001 
-```
-
-To visualize training results in TensorBoard, we can use the following command from a new terminal within **src** folder. 
-
-```bash
-$ tensorboard --logdir='results/logs'
 ```
 
 ## License
