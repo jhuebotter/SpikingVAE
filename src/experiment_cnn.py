@@ -9,13 +9,14 @@ args = parser.parse_args()
 args.conv_channels = [int(item) for item in args.conv_channels.split(',')]
 args.loss = "mse"
 args.encoder = "noisy"
+#args.dataset = "fashion"
 #args.experiment = "cnn_lr_grid"
 args.scale = 1.0
-#args.wd = 0.01
-#args.epochs = 1
+#args.wd = 0.0  # 1
+#args.epochs = 10
 #args.noise = 0.0
-#args.model = "cnn_autoencoder"
-args.metrics = ["correlation", "meanactivity", "pctactive", "pctactiveperexample"]
+args.model = "cnn_autoencoder"
+args.metrics = ["correlation", "meanactivity", "pctactive", "pctactiveperexample", "latent_distances"]
 args.samplers = ["plot_filters",
                  "plot_activity_matrix",
                  "plot_reconstruction",

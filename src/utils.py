@@ -1,5 +1,6 @@
 import argparse
 from pathlib import Path
+import math
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
@@ -1159,11 +1160,15 @@ class RunningAverage:
         self.total = 0
 
     def update(self, val):
-        self.total += val
-        self.steps += 1
+        if not math.isnan(val):
+            self.total += val
+            self.steps += 1
 
     def __call__(self):
-        return self.total / float(self.steps)
+        if self.steps > 0:
+            return self.total / float(self.steps)
+        else:
+            return math.nan
 
 
 

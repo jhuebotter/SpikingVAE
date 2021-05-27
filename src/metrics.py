@@ -1,5 +1,7 @@
 import numpy as np
 import torch
+import math
+from scipy.spatial.distance import pdist, squareform
 
 np.set_printoptions(threshold=np.inf)
 
@@ -147,6 +149,356 @@ def encoding_density(**result):
     return density
 
 
+def within_euclidean(**result):
+    if "labels" in result.keys():
+        labels = result["labels"].cpu().numpy()
+
+        if "total_outs" in result.keys():
+
+            out_spikes = result["out_temps"]
+            layer = out_spikes[LAYERS[0]]
+            timesteps = len(layer)
+            batch_size = layer[0].size()[0]
+            neurons = layer[0].view(batch_size, -1).size()[1]
+            batch_spikes = (
+                torch.stack(layer).detach().cpu().view(timesteps, batch_size, neurons)
+            )
+            latent = torch.mean(batch_spikes, dim=0)
+
+        elif "latent" in result.keys():
+            latent = result["latent"].cpu().numpy()
+            batch_size = latent.shape[0]
+
+        #for met in ["euclidean", "cityblock", "seuclidean", "sqeuclidean", "correlation"]:
+        #print(met)
+
+        distance = squareform(pdist(latent, metric="euclidean"))
+
+        #print("distance matrix:", distance[0])
+        #print("labels:", labels)
+
+        within_class_distances = []
+        outside_class_distances = []
+        for l in np.unique(labels):
+            #print("label:", l)
+            idxs = np.argwhere(labels==l).reshape(-1)
+            outside = np.array([x for x in np.arange(batch_size) if x not in idxs])
+            #print("indexes:", idxs)
+            #print("outside:", outside)
+
+            for e, i in enumerate(idxs[:-1]):
+                #print("index:", i)
+                #print("within class distances:", distance[i][idxs][e+1:])
+                #print("outside class distances:", distance[i][outside])
+                within_class_distances += [d for d in distance[i][idxs][e+1:]]
+                outside_class_distances += [d for d in distance[i][outside]]
+
+        #print("mean within distance:", np.mean(within_class_distances), "+-", np.std(within_class_distances))
+        #print("mean outside distance:", np.mean(outside_class_distances), "+-", np.std(outside_class_distances))
+
+        return np.mean(within_class_distances)
+
+    else:
+        return np.nan
+
+
+def outside_euclidean(**result):
+    if "labels" in result.keys():
+        labels = result["labels"].cpu().numpy()
+        if "total_outs" in result.keys():
+            out_spikes = result["out_temps"]
+            layer = out_spikes[LAYERS[0]]
+            timesteps = len(layer)
+            batch_size = layer[0].size()[0]
+            neurons = layer[0].view(batch_size, -1).size()[1]
+            batch_spikes = (
+                torch.stack(layer).detach().cpu().view(timesteps, batch_size, neurons)
+            )
+            latent = torch.mean(batch_spikes, dim=0)
+
+        elif "latent" in result.keys():
+            latent = result["latent"].cpu().numpy()
+            batch_size = latent.shape[0]
+
+        distance = squareform(pdist(latent, metric="euclidean"))
+
+        outside_class_distances = []
+        for l in np.unique(labels):
+            idxs = np.argwhere(labels == l).reshape(-1)
+            outside = np.array([x for x in np.arange(batch_size) if x not in idxs])
+            for e, i in enumerate(idxs[:-1]):
+                outside_class_distances += [d for d in distance[i][outside]]
+
+        return np.mean(outside_class_distances)
+
+    else:
+        return np.nan
+
+
+def within_seuclidean(**result):
+    if "labels" in result.keys():
+        labels = result["labels"].cpu().numpy()
+        if "total_outs" in result.keys():
+
+            out_spikes = result["out_temps"]
+            layer = out_spikes[LAYERS[0]]
+            timesteps = len(layer)
+            batch_size = layer[0].size()[0]
+            neurons = layer[0].view(batch_size, -1).size()[1]
+            batch_spikes = (
+                torch.stack(layer).detach().cpu().view(timesteps, batch_size, neurons)
+            )
+            latent = torch.mean(batch_spikes, dim=0).numpy()
+
+        elif "latent" in result.keys():
+            latent = result["latent"].cpu().numpy()
+
+        V = np.var(latent, axis=0, ddof=1)
+        V[V==0] = 0.0001
+        distance = squareform(pdist(latent, metric="seuclidean", V=V))
+        within_class_distances = []
+        for l in np.unique(labels):
+            idxs = np.argwhere(labels == l).reshape(-1)
+
+            for e, i in enumerate(idxs[:-1]):
+                within_class_distances += [d for d in distance[i][idxs][e + 1:] if not math.isnan(d)]
+
+        return np.nanmean(within_class_distances)
+
+    else:
+        return np.nan
+
+
+def outside_seuclidean(**result):
+    if "labels" in result.keys():
+        labels = result["labels"].cpu().numpy()
+        if "total_outs" in result.keys():
+            out_spikes = result["out_temps"]
+            layer = out_spikes[LAYERS[0]]
+            timesteps = len(layer)
+            batch_size = layer[0].size()[0]
+            neurons = layer[0].view(batch_size, -1).size()[1]
+            batch_spikes = (
+                torch.stack(layer).detach().cpu().view(timesteps, batch_size, neurons)
+            )
+            latent = torch.mean(batch_spikes, dim=0).numpy()
+
+        elif "latent" in result.keys():
+            latent = result["latent"].cpu().numpy()
+            batch_size = latent.shape[0]
+
+        V = np.var(latent, axis=0, ddof=1)
+        V[V==0] = 0.0001
+        distance = squareform(pdist(latent, metric="seuclidean", V=V))
+
+        outside_class_distances = []
+        for l in np.unique(labels):
+            idxs = np.argwhere(labels == l).reshape(-1)
+            outside = np.array([x for x in np.arange(batch_size) if x not in idxs])
+            for e, i in enumerate(idxs[:-1]):
+                outside_class_distances += [d for d in distance[i][outside] if not math.isnan(d)]
+
+        return np.nanmean(outside_class_distances)
+
+    else:
+        return np.nan
+
+
+def within_sqeuclidean(**result):
+    if "labels" in result.keys():
+        labels = result["labels"].cpu().numpy()
+        if "total_outs" in result.keys():
+
+            out_spikes = result["out_temps"]
+            layer = out_spikes[LAYERS[0]]
+            timesteps = len(layer)
+            batch_size = layer[0].size()[0]
+            neurons = layer[0].view(batch_size, -1).size()[1]
+            batch_spikes = (
+                torch.stack(layer).detach().cpu().view(timesteps, batch_size, neurons)
+            )
+            latent = torch.mean(batch_spikes, dim=0)
+
+        elif "latent" in result.keys():
+            latent = result["latent"].cpu().numpy()
+
+        distance = squareform(pdist(latent, metric="sqeuclidean"))
+        within_class_distances = []
+        for l in np.unique(labels):
+            idxs = np.argwhere(labels == l).reshape(-1)
+
+            for e, i in enumerate(idxs[:-1]):
+                within_class_distances += [d for d in distance[i][idxs][e + 1:]]
+
+        return np.mean(within_class_distances)
+
+    else:
+        return np.nan
+
+
+def outside_sqeuclidean(**result):
+    if "labels" in result.keys():
+        labels = result["labels"].cpu().numpy()
+        if "total_outs" in result.keys():
+            out_spikes = result["out_temps"]
+            layer = out_spikes[LAYERS[0]]
+            timesteps = len(layer)
+            batch_size = layer[0].size()[0]
+            neurons = layer[0].view(batch_size, -1).size()[1]
+            batch_spikes = (
+                torch.stack(layer).detach().cpu().view(timesteps, batch_size, neurons)
+            )
+            latent = torch.mean(batch_spikes, dim=0)
+
+        elif "latent" in result.keys():
+            latent = result["latent"].cpu().numpy()
+            batch_size = latent.shape[0]
+
+        distance = squareform(pdist(latent, metric="sqeuclidean"))
+
+        outside_class_distances = []
+        for l in np.unique(labels):
+            idxs = np.argwhere(labels == l).reshape(-1)
+            outside = np.array([x for x in np.arange(batch_size) if x not in idxs])
+            for e, i in enumerate(idxs[:-1]):
+                outside_class_distances += [d for d in distance[i][outside]]
+
+        return np.mean(outside_class_distances)
+
+    else:
+        return np.nan
+
+
+def within_manhattan(**result):
+    if "labels" in result.keys():
+        labels = result["labels"].cpu().numpy()
+        if "total_outs" in result.keys():
+
+            out_spikes = result["out_temps"]
+            layer = out_spikes[LAYERS[0]]
+            timesteps = len(layer)
+            batch_size = layer[0].size()[0]
+            neurons = layer[0].view(batch_size, -1).size()[1]
+            batch_spikes = (
+                torch.stack(layer).detach().cpu().view(timesteps, batch_size, neurons)
+            )
+            latent = torch.mean(batch_spikes, dim=0)
+
+        elif "latent" in result.keys():
+            latent = result["latent"].cpu().numpy()
+
+        distance = squareform(pdist(latent, metric="cityblock"))
+        within_class_distances = []
+        for l in np.unique(labels):
+            idxs = np.argwhere(labels == l).reshape(-1)
+
+            for e, i in enumerate(idxs[:-1]):
+                within_class_distances += [d for d in distance[i][idxs][e + 1:]]
+
+        return np.mean(within_class_distances)
+
+    else:
+        return np.nan
+
+
+def outside_manhattan(**result):
+    if "labels" in result.keys():
+        labels = result["labels"].cpu().numpy()
+        if "total_outs" in result.keys():
+            out_spikes = result["out_temps"]
+            layer = out_spikes[LAYERS[0]]
+            timesteps = len(layer)
+            batch_size = layer[0].size()[0]
+            neurons = layer[0].view(batch_size, -1).size()[1]
+            batch_spikes = (
+                torch.stack(layer).detach().cpu().view(timesteps, batch_size, neurons)
+            )
+            latent = torch.mean(batch_spikes, dim=0)
+
+        elif "latent" in result.keys():
+            latent = result["latent"].cpu().numpy()
+            batch_size = latent.shape[0]
+
+        distance = squareform(pdist(latent, metric="cityblock"))
+
+        outside_class_distances = []
+        for l in np.unique(labels):
+            idxs = np.argwhere(labels == l).reshape(-1)
+            outside = np.array([x for x in np.arange(batch_size) if x not in idxs])
+            for e, i in enumerate(idxs[:-1]):
+                outside_class_distances += [d for d in distance[i][outside]]
+
+        return np.mean(outside_class_distances)
+
+    else:
+        return np.nan
+
+
+def within_correlation(**result):
+    if "labels" in result.keys():
+        labels = result["labels"].cpu().numpy()
+        if "total_outs" in result.keys():
+
+            out_spikes = result["out_temps"]
+            layer = out_spikes[LAYERS[0]]
+            timesteps = len(layer)
+            batch_size = layer[0].size()[0]
+            neurons = layer[0].view(batch_size, -1).size()[1]
+            batch_spikes = (
+                torch.stack(layer).detach().cpu().view(timesteps, batch_size, neurons)
+            )
+            latent = torch.mean(batch_spikes, dim=0)
+
+        elif "latent" in result.keys():
+            latent = result["latent"].cpu().numpy()
+
+        distance = squareform(pdist(latent, metric="correlation"))
+        within_class_distances = []
+        for l in np.unique(labels):
+            idxs = np.argwhere(labels == l).reshape(-1)
+
+            for e, i in enumerate(idxs[:-1]):
+                within_class_distances += [d for d in distance[i][idxs][e + 1:]]
+
+        return np.mean(within_class_distances)
+
+    else:
+        return np.nan
+
+
+def outside_correlation(**result):
+    if "labels" in result.keys():
+        labels = result["labels"].cpu().numpy()
+        if "total_outs" in result.keys():
+            out_spikes = result["out_temps"]
+            layer = out_spikes[LAYERS[0]]
+            timesteps = len(layer)
+            batch_size = layer[0].size()[0]
+            neurons = layer[0].view(batch_size, -1).size()[1]
+            batch_spikes = (
+                torch.stack(layer).detach().cpu().view(timesteps, batch_size, neurons)
+            )
+            latent = torch.mean(batch_spikes, dim=0)
+
+        elif "latent" in result.keys():
+            latent = result["latent"].cpu().numpy()
+            batch_size = latent.shape[0]
+
+        distance = squareform(pdist(latent, metric="correlation"))
+
+        outside_class_distances = []
+        for l in np.unique(labels):
+            idxs = np.argwhere(labels == l).reshape(-1)
+            outside = np.array([x for x in np.arange(batch_size) if x not in idxs])
+            for e, i in enumerate(idxs[:-1]):
+                outside_class_distances += [d for d in distance[i][outside]]
+
+        return np.mean(outside_class_distances)
+
+    else:
+        return np.nan
+
+
 def get_metrics(metric_names):
     metrics = dict()
 
@@ -167,6 +519,19 @@ def get_metrics(metric_names):
         metrics.update({"latent pct active per example": pct_active_per_example})
     if "encoding_density" in metric_names:
         metrics.update({"encoding density": encoding_density})
+    if "latent_distances" in metric_names:
+        metrics.update({
+            "within class euclidean distance": within_euclidean,
+            "outside class euclidean distance": outside_euclidean,
+            "within class standardized euclidean distance": within_seuclidean,
+            "outside class standardized euclidean distance": outside_seuclidean,
+            "within class squared euclidean distance": within_sqeuclidean,
+            "outside class squared euclidean distance": outside_sqeuclidean,
+            "within class manhattan distance": within_manhattan,
+            "outside class manhattan distance": outside_manhattan,
+            "within class correlation distance": within_correlation,
+            "outside class correlation distance": outside_correlation,
+        })
 
     return metrics
 

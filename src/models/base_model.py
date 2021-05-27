@@ -186,6 +186,8 @@ class BaseModel:
                 for l in self.loss_function.loss_labels:
                     summary[l].update(result[l])
 
+                del result
+
                 t.set_postfix(loss="{:05.4f}".format(summary["loss"]()))
                 t.update()
 
@@ -268,6 +270,8 @@ class BaseModel:
                     if sample_freq and batch_idx % sample_freq == 0:
                         for sampler, sampler_fn in samplers.items():
                             samples.update({f"{sampler} batch {batch_idx}": sampler_fn(**result)})
+
+                    del result
 
                     t.set_postfix(loss="{:05.4f}".format(summary["loss"]()))
                     t.update()
