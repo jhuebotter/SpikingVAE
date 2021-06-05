@@ -18,6 +18,13 @@ def download_FASHION(root):
         root=root, train=True, download=True, transform=transforms.ToTensor()
     )
 
+def download_CIFAR10(root):
+    """Download CIFAR-10 dataset."""
+
+    datasets.CIFAR10(
+        root=root, train=True, download=True, transform=transforms.ToTensor()
+    )
+
 
 if __name__ == "__main__":
     """Setup result directories and download supported datasets."""
@@ -35,9 +42,9 @@ if __name__ == "__main__":
         "--datasets",
         type=str,
         nargs="+",
-        choices=["mnist", "fashion"],
-        help="name of dataset to download [mnist, fashion]",
-        default="mnist",
+        choices=["mnist", "fashion", "cifar10"],
+        help="name of dataset to download [mnist, fashion, cifar10]",
+        default="cifar10",
     )
     args = parser.parse_args()
 
@@ -50,3 +57,7 @@ if __name__ == "__main__":
         print("Downloading Fashion-MNIST dataset...")
         Path.mkdir(Path("data/fashion-mnist"), parents=True, exist_ok=True)
         download_FASHION("data/fashion-mnist")
+    if "cifar10" in args.datasets:
+        print("Downloading CIFAR-10 dataset...")
+        Path.mkdir(Path("data/cifar10"), parents=True, exist_ok=True)
+        download_CIFAR10("data/cifar10")

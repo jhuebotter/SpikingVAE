@@ -1053,6 +1053,10 @@ def get_datasets(
         Dataset = datasets.MNIST
         dataset_path = Path.joinpath(Path(root), "mnist")
         width, height, channels = 28, 28, 1
+    elif dataset == "cifar10":
+        Dataset = datasets.CIFAR10
+        dataset_path = Path.joinpath(Path(root), "cifar10")
+        width, height, channels = 32, 32, 3
     else:
         raise ValueError(f"Dataset {dataset} not supported")
 
