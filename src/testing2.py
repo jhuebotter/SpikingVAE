@@ -9,12 +9,12 @@ torch.autograd.set_detect_anomaly(True)
 # set important parameters
 parser = u.get_argparser()
 args = parser.parse_args()
-args.dataset = "mnist"
+args.dataset = "cifar10"
 args.batch_size = 40
 args.test_batch_size = 40
 args.hidden_sizes = [100]
-args.conv_channels = [int(item) for item in args.conv_channels.split(',')]
-#args.epoch_batches = 100
+args.conv_channels = [32, 64, 64] #  [int(item) for item in args.conv_channels.split(',')]
+args.epoch_batches = 10
 args.epochs = 1#0
 args.grad_clip = 50
 
