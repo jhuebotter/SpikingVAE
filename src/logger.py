@@ -1,4 +1,4 @@
-from torch.utils.tensorboard import SummaryWriter
+#from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 import pandas as pd
 import wandb
@@ -33,7 +33,7 @@ class WandBLogger(object):
         #id = wandb.util.generate_id()
         if args.experiment is not "":
             dir = Path(dir, args.experiment)
-            dir.mkdir(exist_ok=True)
+            dir.mkdir(exist_ok=True, parents=True)
 
         self.results_dir = dir
         self.run = wandb.init(

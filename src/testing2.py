@@ -14,19 +14,22 @@ args.batch_size = 40
 args.test_batch_size = 40
 args.hidden_sizes = [100]
 args.conv_channels = [int(item) for item in args.conv_channels.split(',')]
-args.epoch_batches = 100
-args.epochs = 10
+#args.epoch_batches = 100
+args.epochs = 1#0
 args.grad_clip = 50
 
 # loss
 args.loss = "custom"
 args.wd = 0.0
 args.beta1 = 0.0#1
-args.beta2 = 0.0#1
+args.beta2 = 0.01
 args.lambd1 = 0.0#1
 args.lambd2 = 0.0#1
 args.l1 = 0.0
 args.l2 = 0.0
+args.example2 = 0.0
+args.neuron2 = 0.0
+args.neuron1 = 0.01
 
 #args.delta_w = 1.0
 #args.inactivity_threshold = 1
@@ -95,6 +98,9 @@ loss_fn = losses.get_loss_function(loss=args.loss,
                                                lambd2=args.lambd2,
                                                l1=args.l1,
                                                l2=args.l2,
+                                               example2=args.example2,
+                                               neuron2=args.neuron2,
+                                               neuron1=args.neuron1,
                                                layers=(len(args.conv_channels) + len(args.hidden_sizes)) * 2
                                                )
                                    )
