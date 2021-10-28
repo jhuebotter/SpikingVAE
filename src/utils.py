@@ -1045,18 +1045,29 @@ def get_datasets(
     if test_batch_size is None:
         test_batch_size = batch_size
 
+    transf = []
+
     if dataset == "fashion":
         Dataset = datasets.FashionMNIST
         dataset_path = Path.joinpath(Path(root), "fashion-mnist")
+        transf.append(transforms.ToTensor())
         width, height, channels = 28, 28, 1
     elif dataset == "mnist":
         Dataset = datasets.MNIST
         dataset_path = Path.joinpath(Path(root), "mnist")
+        transf.append(transforms.ToTensor())
         width, height, channels = 28, 28, 1
     elif dataset == "cifar10":
         Dataset = datasets.CIFAR10
         dataset_path = Path.joinpath(Path(root), "cifar10")
+        transf.append(transforms.ToTensor())
         width, height, channels = 32, 32, 3
+    elif dataset == "cifar10gray":
+        Dataset = datasets.CIFAR10
+        dataset_path = Path.joinpath(Path(root), "cifar10")
+        transf.append(transforms.Grayscale())
+        transf.append(transforms.ToTensor())
+        width, height, channels = 32, 32, 1
     else:
         raise ValueError(f"Dataset {dataset} not supported")
 
@@ -1065,7 +1076,7 @@ def get_datasets(
     print(dataset_path)
     train_loader = DataLoader(
         Dataset(
-            dataset_path, train=True, download=False, transform=transforms.ToTensor()
+            dataset_path, train=True, download=False, transform=transforms.Compose(transf)
         ),
         batch_size=batch_size,
         shuffle=True,
@@ -1074,7 +1085,7 @@ def get_datasets(
 
     test_loader = DataLoader(
         Dataset(
-            dataset_path, train=False, download=False, transform=transforms.ToTensor()
+            dataset_path, train=False, download=False, transform=transforms.Compose(transf)
         ),
         batch_size=test_batch_size,
         shuffle=False,
