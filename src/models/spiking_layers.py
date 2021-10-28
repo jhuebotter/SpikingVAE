@@ -764,7 +764,7 @@ class SpikingNN(torch.autograd.Function):
     def backward(self, grad_output):
         (input,) = self.saved_tensors
         grad_input = grad_output.clone()
-        grad_input[input <= 0.0] = 0
+        grad_input[input <= 0.0] = 0  # ???????
         return grad_input
 
 

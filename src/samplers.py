@@ -1301,14 +1301,20 @@ def plot_reconstruction(cbar=True, max_samples=20, form="", vmin=None, vmax=None
         for frame in input_history:
             encoded_inputs += frame.cpu()
 
-        encoded_inputs = torch.div(encoded_inputs, len(input_history) * scale)
+        encoded_inputs = torch.div(encoded_inputs, len(input_history) * scale).numpy()
 
     batch_size = inputs.shape[0]
+    channels = inputs.shape[1]
 
     for example in range(min([batch_size, max_samples])):
 
         # plot input
-        fig = tensor_to_greyscale(inputs[example], cbar=cbar, vmin=vmin, vmax=vmax)
+        if channels == 1:
+            fig = tensor_to_greyscale(inputs[example], cbar=cbar, vmin=vmin, vmax=vmax)
+        elif channels == 3 or channels == 4:
+            fig = tensor_to_rgb(inputs[example], vmin=vmin, vmax=vmax)
+        else:
+            fig = None
         if form:
             Path(DIR).mkdir(parents=True, exist_ok=True)
             path = Path(DIR, f"original_e{example+1}.{form}")
@@ -1319,7 +1325,12 @@ def plot_reconstruction(cbar=True, max_samples=20, form="", vmin=None, vmax=None
 
         # plot encoding
         if "input_history" in result.keys():
-            fig = tensor_to_greyscale(encoded_inputs[example], cbar=cbar, vmin=vmin, vmax=vmax)
+            if channels == 1:
+                fig = tensor_to_greyscale(encoded_inputs[example], cbar=cbar, vmin=vmin, vmax=vmax)
+            elif channels == 3 or channels == 4:
+                fig = tensor_to_rgb(encoded_inputs[example], vmin=vmin, vmax=vmax)
+            else:
+                fig = None
             if form:
                 path = Path(DIR, f"encoding_e{example+1}.{form}")
                 plt.savefig(path, format=form)
@@ -1327,7 +1338,12 @@ def plot_reconstruction(cbar=True, max_samples=20, form="", vmin=None, vmax=None
             plt.close()
 
         # plot reconstruction
-        fig = tensor_to_greyscale(outputs[example], cbar=cbar, vmin=vmin, vmax=vmax)
+        if channels == 1:
+            fig = tensor_to_greyscale(outputs[example], cbar=cbar, vmin=vmin, vmax=vmax)
+        elif channels == 3 or channels == 4:
+            fig = tensor_to_rgb(outputs[example], vmin=vmin, vmax=vmax)
+        else:
+            fig = None
         if form:
             path = Path(DIR, f"reconstruction_e{example+1}.{form}")
             plt.savefig(path, format=form)
@@ -1366,6 +1382,18 @@ def tensor_to_greyscale(tensor, cbar=True, vmin=None, vmax=None):
     if cbar:
         fig.colorbar(cax)
 
+    ax.axes.xaxis.set_visible(False)
+    ax.axes.yaxis.set_visible(False)
+    plt.tight_layout()
+
+    return fig
+
+
+def tensor_to_rgb(tensor, vmin=None, vmax=None):
+
+    fig = plt.figure(figsize=(2, 2))
+    ax = fig.add_subplot(111)
+    ax.imshow(tensor.transpose(1, 2, 0), interpolation="none", vmin=vmin, vmax=vmax)
     ax.axes.xaxis.set_visible(False)
     ax.axes.yaxis.set_visible(False)
     plt.tight_layout()
