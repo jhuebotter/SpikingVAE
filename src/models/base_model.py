@@ -455,7 +455,7 @@ class BaseModel:
         # Train for desired number of epochs
         for epoch in range(start_epoch, start_epoch + epochs):
             train_results = self.train(train_loader, epoch, metrics, max_epoch_batches)
-            val_results, samples = self.evaluate(val_loader, metrics, samplers, sample_freq)
+            val_results, samples = self.evaluate(val_loader, metrics, samplers, sample_freq, max_epoch_batches)
 
             train_loss = train_results["loss"]
             val_loss = val_results["loss"]

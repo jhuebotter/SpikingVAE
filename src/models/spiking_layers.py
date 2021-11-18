@@ -28,6 +28,7 @@ class LinearLIF(nn.Module):
         delta_w=0.01,
         device="cpu",
         reset=True,
+        history=True
     ):
         super(LinearLIF, self).__init__()
         self.in_features = in_features
@@ -46,6 +47,7 @@ class LinearLIF(nn.Module):
         self.inactivity_threshold = inactivity_threshold
         self.delta_w = delta_w
         self.inactive_counter = None
+        self.history = history
 
         if bias:
             self.bias = Parameter(torch.Tensor(out_features))
@@ -101,8 +103,9 @@ class LinearLIF(nn.Module):
         )
         self.LF_out = torch.zeros(self.out_features, device=device)
         self.total_out = torch.zeros(self.out_features, device=device)
-        self.potential_history = []
-        self.cumulative_potential_history = []
+        if self.history:
+            self.potential_history = []
+            self.cumulative_potential_history = []
         self.out_temp = []
         self.initialized = True
 
@@ -120,7 +123,6 @@ class LinearLIF(nn.Module):
             self.initialize(input_current)
 
         self.membrane_potential = self.membrane_potential + input_current
-        self.potential_history.append(self.membrane_potential.detach())
         self.leaky_cumulative_membrane_potential = (
             self.leaky_cumulative_membrane_potential + input_current
         )
@@ -129,9 +131,11 @@ class LinearLIF(nn.Module):
             + self.leaky_cumulative_membrane_potential
             - self.leaky_cumulative_membrane_potential.detach()
         )
-        self.cumulative_potential_history.append(
-            self.leaky_cumulative_membrane_potential  # .detach()
-        )
+        if self.history:
+            self.potential_history.append(self.membrane_potential.detach())
+            self.cumulative_potential_history.append(
+                self.leaky_cumulative_membrane_potential  # .detach()
+            )
 
         out_spikes, self.membrane_potential = lif_sneuron(
             self.membrane_potential, self.threshold, self.decay, reset=self.reset,
@@ -170,11 +174,6 @@ def adapt_sensitivity(self, out_spikes, inactive_counter, inactivity_threshold, 
 
     self.weight.data += long_inactivity.repeat((self.weight.data.size(1), 1)).T * delta_w * var
 
-    print(self)
-    print(inactive.sum())
-    print(long_inactivity.sum())
-    print()
-
     return inactive_counter
 
 
@@ -187,7 +186,6 @@ def adapt_threshold(self, out_spikes):
     batch_size = self.potential_history[-1].size(0)
     mean_potential = torch.div(summed_potential, batch_size)
 
-    print(mean_potential.mean())
     inactive = torch.where(
         summed_spikes == 0,
         torch.ones(summed_spikes.size(), device=summed_spikes.device),
@@ -354,6 +352,7 @@ class Conv2dLIF(_ConvNd):
         delta_w=0.01,
         device="cpu",
         reset=True,
+        history=True
     ):
         kernel_size = _pair(kernel_size)
         stride = _pair(stride)
@@ -371,6 +370,7 @@ class Conv2dLIF(_ConvNd):
         self.reset = reset
         self.inactivity_threshold = inactivity_threshold
         self.delta_w = delta_w
+        self.history = history
 
         super(Conv2dLIF, self).__init__(
             in_channels,
@@ -417,8 +417,9 @@ class Conv2dLIF(_ConvNd):
         )
         self.LF_out = torch.zeros(input_current.size(), device=device)
         self.total_out = torch.zeros(input_current.size(), device=device)
-        self.potential_history = []
-        self.cumulative_potential_history = []
+        if self.history:
+            self.potential_history = []
+            self.cumulative_potential_history = []
         self.out_temp = []
         self.initialized = True
 
@@ -454,7 +455,6 @@ class Conv2dLIF(_ConvNd):
             self.initialize(input_current)
 
         self.membrane_potential = self.membrane_potential + input_current
-        self.potential_history.append(self.membrane_potential.detach())
         self.leaky_cumulative_membrane_potential = (
             self.leaky_cumulative_membrane_potential + input_current
         )
@@ -463,9 +463,11 @@ class Conv2dLIF(_ConvNd):
             + self.leaky_cumulative_membrane_potential
             - self.leaky_cumulative_membrane_potential.detach()
         )
-        self.cumulative_potential_history.append(
-            self.leaky_cumulative_membrane_potential  # .detach()
-        )
+        if self.history:
+            self.potential_history.append(self.membrane_potential.detach())
+            self.cumulative_potential_history.append(
+                self.leaky_cumulative_membrane_potential  # .detach()
+            )
 
         out_spikes, self.membrane_potential = lif_sneuron(
             self.membrane_potential, self.threshold, self.decay, reset=self.reset,
@@ -612,6 +614,7 @@ class ConvTranspose2dLIF(_ConvTransposeNd):
         delta_w=0.01,
         device="cpu",
         reset=True,
+        history=True,
     ):
         kernel_size = _pair(kernel_size)
         stride = _pair(stride)
@@ -630,6 +633,7 @@ class ConvTranspose2dLIF(_ConvTransposeNd):
         self.reset = reset
         self.inactivity_threshold = inactivity_threshold
         self.delta_w = delta_w
+        self.history = history
 
         super(ConvTranspose2dLIF, self).__init__(
             in_channels,
@@ -676,8 +680,9 @@ class ConvTranspose2dLIF(_ConvTransposeNd):
         )
         self.LF_out = torch.zeros(input_current.size(), device=device)
         self.total_out = torch.zeros(input_current.size(), device=device)
-        self.potential_history = []
-        self.cumulative_potential_history = []
+        if self.history:
+            self.potential_history = []
+            self.cumulative_potential_history = []
         self.out_temp = []
         self.initialized = True
 
@@ -707,7 +712,6 @@ class ConvTranspose2dLIF(_ConvTransposeNd):
             self.initialize(input_current)
 
         self.membrane_potential = self.membrane_potential + input_current
-        self.potential_history.append(self.membrane_potential.detach())
         self.leaky_cumulative_membrane_potential = (
             self.leaky_cumulative_membrane_potential + input_current
         )
@@ -716,9 +720,11 @@ class ConvTranspose2dLIF(_ConvTransposeNd):
             + self.leaky_cumulative_membrane_potential
             - self.leaky_cumulative_membrane_potential.detach()
         )
-        self.cumulative_potential_history.append(
-            self.leaky_cumulative_membrane_potential  # .detach()
-        )
+        if self.history:
+            self.potential_history.append(self.membrane_potential.detach())
+            self.cumulative_potential_history.append(
+                self.leaky_cumulative_membrane_potential  # .detach()
+            )
 
         out_spikes, self.membrane_potential = lif_sneuron(
             self.membrane_potential, self.threshold, self.decay, reset=self.reset,

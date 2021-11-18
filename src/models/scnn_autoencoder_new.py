@@ -5,7 +5,6 @@ from models.spiking_layers import Conv2dLIF
 from models.input_encoders import get_input_encoder
 from models.output_decoders import get_output_decoder
 import utils as u
-import losses
 
 
 class SpikingConvolutionalAutoencoderNew(SpikingBaseModel):
@@ -68,8 +67,6 @@ class SpikingConvolutionalAutoencoderNew(SpikingBaseModel):
         # initialize model
         if verbose:
             self.log_func("Initializing spiking convolutional autoencoder...")
-
-        print(adapt_threshold)
 
         self.task = "reconstruction"
         self.hidden_sizes = hidden_sizes
@@ -197,8 +194,6 @@ class SCNNAutoencoderModelNew(nn.Module):
         self.steps = steps
         self.reset = reset
 
-        print(adapt_threshold)
-
         # define convolutional encoder layers
         sconv_encoder_args = dict(
             input_channels=self.input_channels,
@@ -257,6 +252,7 @@ class SCNNAutoencoderModelNew(nn.Module):
         )
 
         sfc_encoder_parameters = u.get_sfclif_layers(**sfc_encoder_args)
+        sfc_encoder_parameters[-1]["parameters"]["history"] = True
         self.fc_encoder_layers = u.build_layers(sfc_encoder_parameters)
 
         # define fully connected decoder layers
@@ -299,8 +295,6 @@ class SCNNAutoencoderModelNew(nn.Module):
         #unpooling_strides = self.pooling_strides
         #unpooling_strides.reverse()
 
-        print(adapt_threshold)
-
         sconv_decoder_args = dict(
             input_channels=x_[0].shape[0],
             channels=decoder_convtranspose2d_channels,
@@ -324,7 +318,9 @@ class SCNNAutoencoderModelNew(nn.Module):
             reset=self.reset,
             #pool_thresholds=[pool_threshold for i in range(len(self.conv2d_channels))],
         )
+
         sconv_decoder_parameters = u.get_sconvtranspose2dlif_layers(**sconv_decoder_args)
+        sconv_decoder_parameters[-1]["parameters"]["history"] = True
         self.conv_decoder_layers = u.build_layers(sconv_decoder_parameters)
 
         # initialize input encoder
@@ -392,8 +388,8 @@ class SCNNAutoencoderModelNew(nn.Module):
 
         total_outs = [l.total_out for l in modules]
         #LF_outs = [l.LF_out for l in modules]
-        potential_history = [l.potential_history for l in modules]
-        cum_potential_history = [l.cumulative_potential_history for l in modules]
+        potential_history = [l.potential_history if l.history else [] for l in modules]
+        cum_potential_history = [l.cumulative_potential_history if l.history else [] for l in modules]
         out_temps = [l.out_temp for l in modules]
 
         result = dict(

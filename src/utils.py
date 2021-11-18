@@ -1,5 +1,6 @@
 import argparse
 from pathlib import Path
+from PIL import Image
 import math
 import torch
 import torch.nn as nn
@@ -541,6 +542,7 @@ def get_sfclif_layers(
                     delta_w=delta_ws[i],
                     device=device,
                     reset=reset,
+                    #history=True if i == (len(n_nodes) - 1) else False
                 ),
             )
         )
@@ -941,6 +943,7 @@ def get_sconvtranspose2dlif_layers(
                     delta_w=delta_ws[i],
                     device=device,
                     reset=reset,
+                    #history=True if i == (len(n_channels) - 1) else False
                 ),
             )
         )
@@ -1052,22 +1055,73 @@ def get_datasets(
         dataset_path = Path.joinpath(Path(root), "fashion-mnist")
         transf.append(transforms.ToTensor())
         width, height, channels = 28, 28, 1
+        trainset = Dataset(
+            dataset_path, train=True, download=False, transform=transforms.Compose(transf)
+        )
+        testset = Dataset(
+            dataset_path, train=False, download=False, transform=transforms.Compose(transf)
+        )
     elif dataset == "mnist":
         Dataset = datasets.MNIST
         dataset_path = Path.joinpath(Path(root), "mnist")
         transf.append(transforms.ToTensor())
         width, height, channels = 28, 28, 1
+        trainset = Dataset(
+            dataset_path, train=True, download=False, transform=transforms.Compose(transf)
+        )
+        testset = Dataset(
+            dataset_path, train=False, download=False, transform=transforms.Compose(transf)
+        )
     elif dataset == "cifar10":
         Dataset = datasets.CIFAR10
         dataset_path = Path.joinpath(Path(root), "cifar10")
         transf.append(transforms.ToTensor())
         width, height, channels = 32, 32, 3
+        trainset = Dataset(
+            dataset_path, train=True, download=False, transform=transforms.Compose(transf)
+        )
+        testset = Dataset(
+            dataset_path, train=False, download=False, transform=transforms.Compose(transf)
+        )
     elif dataset == "cifar10gray":
         Dataset = datasets.CIFAR10
         dataset_path = Path.joinpath(Path(root), "cifar10")
         transf.append(transforms.Grayscale())
         transf.append(transforms.ToTensor())
         width, height, channels = 32, 32, 1
+        trainset = Dataset(
+            dataset_path, train=True, download=False, transform=transforms.Compose(transf)
+        )
+        testset = Dataset(
+            dataset_path, train=False, download=False, transform=transforms.Compose(transf)
+        )
+    elif dataset == "celeba":
+        Dataset = CelebADataset
+        dataset_path = Path.joinpath(Path(root), "celeba/img_align_celeba/img_align_celeba")
+        transf.append(transforms.Resize(64))
+        transf.append(transforms.CenterCrop(64))
+        transf.append(transforms.ToTensor())
+        width, height, channels = 64, 64, 3
+        trainset = Dataset(
+            dataset_path, train=True, transform=transforms.Compose(transf)
+        )
+        testset = Dataset(
+            dataset_path, train=False, transform=transforms.Compose(transf)
+        )
+    elif dataset == "celebagray":
+        Dataset = CelebADataset
+        dataset_path = Path.joinpath(Path(root), "celeba/img_align_celeba/img_align_celeba")
+        transf.append(transforms.Resize(64))
+        transf.append(transforms.CenterCrop(64))
+        transf.append(transforms.Grayscale())
+        transf.append(transforms.ToTensor())
+        width, height, channels = 64, 64, 1
+        trainset = Dataset(
+            dataset_path, train=True, transform=transforms.Compose(transf)
+        )
+        testset = Dataset(
+            dataset_path, train=False, transform=transforms.Compose(transf)
+        )
     else:
         raise ValueError(f"Dataset {dataset} not supported")
 
@@ -1075,18 +1129,14 @@ def get_datasets(
 
     print(dataset_path)
     train_loader = DataLoader(
-        Dataset(
-            dataset_path, train=True, download=False, transform=transforms.Compose(transf)
-        ),
+        trainset,
         batch_size=batch_size,
         shuffle=True,
         **kwargs,
     )
 
     test_loader = DataLoader(
-        Dataset(
-            dataset_path, train=False, download=False, transform=transforms.Compose(transf)
-        ),
+        testset,
         batch_size=test_batch_size,
         shuffle=False,
         **kwargs,
@@ -1095,16 +1145,53 @@ def get_datasets(
     if verbose:
         print("Train set:")
         print(train_loader.dataset)
-        print("Train Data shape:")
-        print(train_loader.dataset.data.shape)
+        #print("Train Data shape:")
+        #print(train_loader.dataset.data.shape)
         print("Test set:")
         print(test_loader.dataset)
-        print("Test Data shape:")
-        print(test_loader.dataset.data.shape)
+        #print("Test Data shape:")
+        #print(test_loader.dataset.data.shape)
         print("Dataset loaded successfully!\n")
 
     return train_loader, test_loader, (width, height, channels)
 
+
+## Create a custom Dataset class
+class CelebADataset(torch.utils.data.Dataset):
+  def __init__(self, root_dir, train=True, test_split=0.8, transform=None):
+    """
+    Args:
+      root_dir (string): Directory with all the images
+      transform (callable, optional): transform to be applied to each image sample
+    """
+    # Read names of images in the root directory
+    self.train = train
+
+    image_names = sorted(Path(root_dir).glob('*.jpg'))
+    n = len(image_names)
+    split = int(n*test_split)
+    assert split <= n
+    if train:
+        self.image_names = image_names[:split]
+    else:
+        self.image_names = image_names[split:]
+    self.root_dir = root_dir
+    self.transform = transform
+
+  def __len__(self):
+    return len(self.image_names)
+
+  def __getitem__(self, idx):
+    # Get the path to the image
+    #img_path = Path(self.root_dir, self.image_names[idx])
+    img_path = Path(self.image_names[idx])
+    # Load image and convert it to RGB
+    img = Image.open(img_path).convert('RGB')
+    # Apply transformations to the image
+    if self.transform:
+      img = self.transform(img)
+
+    return img, img
 
 def get_backend(args):
     """Checks for available GPU and chooses the hardware device.
