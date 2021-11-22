@@ -29,6 +29,22 @@ class LastPotentialDecoder(BaseDecoder):
         return last_potential
 
 
+class SpikeCountDecoder(BaseDecoder):
+    # TODO pass spiking output to decoder instead of potential history
+
+    def __init__(self, scaling=1.0, **kwargs):
+        super().__init__(**kwargs)
+        self.scaling = scaling
+
+    def decode(self, output_history):
+
+        spike_counts = output_history.sum(axis=-1)
+        if self.scaling != 1.0:
+            spike_counts = torch.div(spike_counts, self.scaling)
+
+        return spike_counts
+
+
 class MaxPotentialDecoder(BaseDecoder):
     def __init__(self, scaling=1.0, **kwargs):
         super().__init__(**kwargs)

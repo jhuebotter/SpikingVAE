@@ -101,7 +101,8 @@ class CustomMSELoss(_Loss):
             print("average neuron activity loss 2:", l2_neuron)
             print("own mse", own_mse)
 
-        loss = reconstruction_loss + l1_weights + l2_weights + l2_neuron + l2_example
+        #loss = reconstruction_loss + l1_weights + l2_weights + l2_neuron + l2_example
+        loss = own_mse + l1_weights + l2_weights + l2_neuron + l2_example
 
         losses = {
             "loss": loss,
@@ -294,7 +295,10 @@ class CustomSNNLoss(_Loss):
             print("average neuron activity loss 2:", l2_neuron)
             print("own mse:", own_mse)
 
-        loss = reconstruction_loss + l1_burst + l2_burst + l1_potential + l2_potential +\
+        #loss = reconstruction_loss + l1_burst + l2_burst + l1_potential + l2_potential +\
+        #       l1_weights + l2_weights + l2_example + l1_neuron + l2_neuron
+
+        loss = own_mse + l1_burst + l2_burst + l1_potential + l2_potential + \
                l1_weights + l2_weights + l2_example + l1_neuron + l2_neuron
         
         losses = {
@@ -405,7 +409,9 @@ class CustomBetaLoss(_Loss):
             print("own mse", own_mse)
             print("beta:", self.beta)
 
-        loss = reconstruction_loss + beta_loss + l1_weights + l2_weights
+        #loss = reconstruction_loss + beta_loss + l1_weights + l2_weights
+        loss = own_mse + beta_loss + l1_weights + l2_weights
+
 
         losses = {
             "loss": loss,
