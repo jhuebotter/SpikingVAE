@@ -16,7 +16,8 @@ args.scale = 1.0
 #args.epochs = 10
 #args.noise = 0.0
 #args.model = "cnn_autoencoder"
-args.metrics = ["correlation", "meanactivity", "pctactive", "pctactiveperexample", "latent_distances"]
+args.metrics = ["correlation", "meanactivity", "pctactive", "pctactiveperexample"]
+#, "latent_distances"]
 args.samplers = ["plot_filters",
                  "plot_activity_matrix",
                  "plot_reconstruction",
