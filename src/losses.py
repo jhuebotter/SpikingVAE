@@ -263,17 +263,17 @@ class CustomSNNLoss(_Loss):
             print("squared sum - target / N:", activity.square().sum() / N)
             """
 
-            l1_burst = l1_burst + self.lambd1 * spikes.div(t).abs().sum().div(batch_size)
-            l2_burst = l2_burst + self.lambd2 * spikes.div(t).square().sum().div(batch_size)
-            l1_potential = l1_potential + self.beta1 * activity.div(t).abs().sum().div(batch_size)
-            l2_potential = l2_potential + self.beta2 * activity.div(t).square().sum().div(batch_size)
+            l1_burst = l1_burst + self.lambd1 * spikes.div(t).abs().sum().div(batch_size*N)
+            l2_burst = l2_burst + self.lambd2 * spikes.div(t).square().sum().div(batch_size*N)
+            l1_potential = l1_potential + self.beta1 * activity.div(t).abs().sum().div(batch_size*N)
+            l2_potential = l2_potential + self.beta2 * activity.div(t).square().sum().div(batch_size*N)
             l1_weights = l1_weights + self.l1 * weights.abs().sum()
             l2_weights = l2_weights + self.l2 * weights.square().sum()
 
             if i == self.latent_index:
-                l2_example = self.example2 * spikes.div(t).sum(dim=1).square().sum().div(batch_size)
-                l2_neuron = self.neuron2 * spikes.div(t).sum(dim=0).square().sum().div(batch_size)
-                l1_neuron = self.neuron1 * spikes.div(t).sum().div(batch_size)
+                l2_example = self.example2 * spikes.div(t).sum(dim=1).square().sum().div(batch_size*N)
+                l2_neuron = self.neuron2 * spikes.div(t).sum(dim=0).square().sum().div(batch_size*N)
+                l1_neuron = self.neuron1 * spikes.div(t).sum().div(batch_size*N)
 
 
         own_mse = (result["output"] - result["target"]) ** 2
